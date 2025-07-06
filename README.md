@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue) ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-green) ![License](https://img.shields.io/badge/license-BSD--3--Clause-orange)
 
-**Your Music Album Downloader**
+**YouTube Music Album Downloader**
 
 Yeah, we know. Another downloader script. How original. But this one actually works without making you want to throw your laptop out the window.
 
@@ -95,8 +95,8 @@ Because unlike some people, we believe in organization.
 ## What You Get
 
 ✅ **High-quality audio** - Not potato quality like some tools  
-✅ **Proper metadata** - Album art, track numbers, the works  
-✅ **Plex-ready files** - Organized like a normal human being  
+✅ **Proper metadata** - Album art, track numbers, cleaned up and Plex-ready  
+✅ **Organized files** - Sorted like a normal human being would  
 ✅ **No duplicates** - Because we're not savages  
 ✅ **Clean filenames** - No weird Unicode disasters  
 ✅ **Cross-platform** - Works on your Linux, Mac, or Windows-with-WSL setup  
@@ -115,7 +115,7 @@ Because unlike some people, we believe in organization.
 A: Ask your lawyer, not us.
 
 **Q: Why is it called YouMAD?**  
-A: Because you're mad at streaming services. Keep up.
+A: Because you're insane if you're using any other tool. Keep up.
 
 **Q: Can it download video?**  
 A: No. It's a MUSIC downloader. Reading is fundamental.
