@@ -144,7 +144,6 @@ BSD-3-Clause. Use it, abuse it, don't blame us when things go sideways.
 ---
 
 **Made with ❤️ and excessive amounts of caffeine**  
-*For people who are tired of streaming services treating them like criminals*
 
 ---
 
