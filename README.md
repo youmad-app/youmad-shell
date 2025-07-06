@@ -11,9 +11,8 @@ Downloads albums from YouTube Music. Yeah, we know. Another downloader script. H
 Because you're tired of:
 - Spotify removing your favorite albums without warning
 - YouTube Music's terrible offline functionality  
-- Paying monthly subscriptions for music you already "bought"
-- Complicated scripts that break every other week
 - Being told what you can and can't do with music
+- Complicated scripts that break every other week
 - Plex having a complete meltdown because your metadata isn't perfect
 
 ## What It Does
