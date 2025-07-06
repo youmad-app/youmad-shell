@@ -1,6 +1,5 @@
 #!/bin/bash
-# YouMAD? - YouTube Music Album Downloader v1.0.0
-# Uses individual track downloads to bypass YouTube Music playlist restrictions
+# YouMAD? - Your Music Album Downloader v1.0.0
 
 set -euo pipefail
 
@@ -41,7 +40,7 @@ log() {
 # Show usage information
 show_usage() {
     cat << EOF
-YouMAD? - YouTube Music Album Downloader v1.0.0
+YouMAD? - Your Music Album Downloader v1.0.0
 
 Usage: $0 [OPTIONS]
 
