@@ -2,9 +2,9 @@
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue) ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-green) ![License](https://img.shields.io/badge/license-BSD--3--Clause-orange)
 
-**YouTube Music Album Downloader**
+**Your Music Album Downloader**
 
-Yeah, we know. Another downloader script. How original. But this one actually works without making you want to throw your laptop out the window.
+Downloads albums from YouTube Music. Yeah, we know. Another downloader script. How original. But this one actually works without making you want to throw your laptop out the window.
 
 ## Why YouMAD? Exists
 
@@ -14,6 +14,7 @@ Because you're tired of:
 - Paying monthly subscriptions for music you already "bought"
 - Complicated scripts that break every other week
 - Being told what you can and can't do with music
+- Plex having a complete meltdown because your metadata isn't perfect
 
 ## What It Does
 
