@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue) ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-green) ![License](https://img.shields.io/badge/license-BSD--3--Clause-orange)
 
-**YouTube Music Album Downloader**
+**Your Music Album Downloader**
 
 Yeah, we know. Another downloader script. How original. But this one actually works without making you want to throw your laptop out the window.
 
