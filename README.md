@@ -56,11 +56,17 @@ Create a file called `urls.txt` in the same folder as the script:
 
 ```
 https://music.youtube.com/playlist?list=OLAK5uy_example;Artist Name
+https://music.youtube.com/playlist?list=OLAK5uy_example;Artist Name;
 https://music.youtube.com/playlist?list=OLAK5uy_example;Artist Name;ep
 https://music.youtube.com/playlist?list=OLAK5uy_example;Artist Name;live
 ```
 
 Format: `URL;Artist Name;Release Type`
+
+**Artist Name** (Because YouTube Music doesn't understand that an album is made by _someone_):
+- This sets album artist to what you want, no more split albums in Plex
+- This will also be the folder name where the albums are downloaded
+- Use any character, including whitespace, except semicolon (because that's the separator, doh!)
 
 **Release Types** (because Plex is picky):
 - `album` - Regular albums (default, obviously)
@@ -69,12 +75,22 @@ Format: `URL;Artist Name;Release Type`
 - `live` - Live albums (for when studio wasn't good enough)
 - `comp` - Compilations (greatest hits, etc.)
 
+This one is optional, end with just the `;` for an empty `RELEASETYPE` tag.
+
 ### Step 2: Run The Thing
 ```bash
 ./youmad.sh
 ```
 
-First time? It'll ask you some questions on audio format, rate-limiting, and browser cookies. Answer them. It's not a quiz.
+**First time?**
+It'll ask you some questions on audio format, rate-limiting, and browser cookies. Answer them. It's not a quiz.
+
+YouMAD? can save your treasures in the following formats:
+- `m4a`
+- `mp3`
+- `opus`
+- `flac`
+- `wav`
 
 ### Step 3: Wait
 Go make coffee. Browse Reddit. Question your life choices. The script is working.
