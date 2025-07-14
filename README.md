@@ -132,17 +132,17 @@ Because unlike some people, we believe in organization.
 
 ## FAQ (Frequently Avoided Questions)
 
-**Q: Is this legal?**  
-A: Ask your lawyer, not us.
-
 **Q: Why is it called YouMAD?**  
-A: Because you're insane if you're using any other tool. Keep up.
+A: Because that's the one question that pops up when adding media to Plex. You'd be insane to use any other tool.
 
 **Q: Can it download video?**  
 A: No. It's a MUSIC downloader. Reading is fundamental.
 
 **Q: Why doesn't it work?**  
 A: Did you install the dependencies? Did you read the instructions? Try that first.
+
+**Q: I did that, why do I still get all sorts of errors?**
+A: Google changes stuff. Make sure you update yt-dlp to the latest version.
 
 **Q: Can you add feature X?**  
 A: Create an issue. We'll consider it if it's not terrible.
