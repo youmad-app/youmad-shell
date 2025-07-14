@@ -85,12 +85,15 @@ This one is optional, end with just the `;` for an empty `RELEASETYPE` tag.
 **First time?**
 It'll ask you some questions on audio format, rate-limiting, and browser cookies. Answer them. It's not a quiz.
 
-YouMAD? can save your treasures in the following formats:
-- `m4a`
-- `mp3`
-- `opus`
-- `flac`
-- `wav`
+```bash
+./youmad.sh
+=== YouMAD? Configuration ===
+Leave blank to use defaults shown in brackets.
+
+Preferred audio format (m4a, mp3, opus, flac, wav) [m4a]: m4a
+Maximum download rate (e.g., 4M, 1M, 500K) [4M]:
+Browser to extract cookies from (chrome, chromium, brave, firefox, safari, edge) [chrome]: chromium
+```
 
 ### Step 3: Wait
 Go make coffee. Browse Reddit. Question your life choices. The script is working.
