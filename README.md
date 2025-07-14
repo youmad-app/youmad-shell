@@ -34,11 +34,11 @@ Congratulations, you just learned the entire interface.
 **Dependencies** (install these first, genius):
 ```bash
 # Ubuntu/Debian (because of course you use Ubuntu)
-sudo apt install ffmpeg exiftool jq
+sudo apt install ffmpeg exiftool jq opustags
 pip install yt-dlp --user
 
 # macOS (fancy, aren't we?)
-brew install ffmpeg exiftool jq yt-dlp
+brew install ffmpeg exiftool jq yt-dlp opustags
 ```
 
 **Get YouMAD?:**
