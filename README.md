@@ -74,7 +74,7 @@ Format: `URL;Artist Name;Release Type`
 ./youmad.sh
 ```
 
-First time? It'll ask you some questions. Answer them. It's not a quiz.
+First time? It'll ask you some questions on audio format, rate-limiting, and browser cookies. Answer them. It's not a quiz.
 
 ### Step 3: Wait
 Go make coffee. Browse Reddit. Question your life choices. The script is working.
