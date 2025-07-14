@@ -1,5 +1,5 @@
 #!/bin/bash
-# YouMAD? - Your Music Album Downloader v1.0.0
+# YouMAD? - Your Music Album Downloader v1.0.1
 
 set -euo pipefail
 
@@ -40,7 +40,7 @@ log() {
 # Show usage information
 show_usage() {
     cat << EOF
-YouMAD? - Your Music Album Downloader v1.0.0
+YouMAD? - Your Music Album Downloader v1.0.1
 
 Usage: $0 [OPTIONS]
 
@@ -170,18 +170,60 @@ EOF
 check_dependencies() {
     local missing_deps=()
 
-    for tool in yt-dlp ffmpeg exiftool jq; do
+    # Check core dependencies
+    for tool in yt-dlp ffmpeg jq; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             missing_deps+=("$tool")
         fi
     done
 
+    # Check format-specific dependencies
+    if [[ "$FORMAT" == "opus" ]]; then
+        # For opus format, we need opustags instead of exiftool
+        if ! command -v "opustags" >/dev/null 2>&1; then
+            missing_deps+=("opustags")
+        fi
+    else
+        # For all other formats, we need exiftool
+        if ! command -v "exiftool" >/dev/null 2>&1; then
+            missing_deps+=("exiftool")
+        fi
+    fi
+
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         log "ERROR" "YouMAD? missing dependencies: ${missing_deps[*]}"
+        
+        # Provide helpful installation instructions
+        echo ""
+        echo "Installation instructions:"
+        for dep in "${missing_deps[@]}"; do
+            case "$dep" in
+                "opustags")
+                    echo "  opustags: sudo apt install opustags  (or build from https://github.com/fmang/opustags)"
+                    ;;
+                "exiftool")
+                    echo "  exiftool: sudo apt install exiftool  (Ubuntu/Debian)"
+                    ;;
+                "yt-dlp")
+                    echo "  yt-dlp: pip install yt-dlp --user"
+                    ;;
+                "ffmpeg")
+                    echo "  ffmpeg: sudo apt install ffmpeg  (Ubuntu/Debian)"
+                    ;;
+                "jq")
+                    echo "  jq: sudo apt install jq  (Ubuntu/Debian)"
+                    ;;
+            esac
+        done
+        echo ""
         exit 1
     fi
 
-    log "INFO" "YouMAD? dependencies found: yt-dlp, ffmpeg, exiftool, jq"
+    if [[ "$FORMAT" == "opus" ]]; then
+        log "INFO" "YouMAD? dependencies found: yt-dlp, ffmpeg, opustags, jq"
+    else
+        log "INFO" "YouMAD? dependencies found: yt-dlp, ffmpeg, exiftool, jq"
+    fi
 }
 
 # Cross-platform function to find latest directory
@@ -205,7 +247,7 @@ find_latest_album_dir() {
     fi
 }
 
-# Clean metadata and set AlbumArtist - FIXED VERSION WITH PROPER TRACK TAGS
+# Clean metadata and set AlbumArtist - TAG SUPPORT FOR OPUS
 clean_metadata() {
     local artist="${1:-Various}"
     local album_dir="$2"
@@ -217,7 +259,11 @@ clean_metadata() {
     fi
 
     if [[ -d "$album_dir" ]]; then
-        log "INFO" "YouMAD? cleaning metadata and fixing track numbers in: $album_dir"
+        if [[ "$FORMAT" == "opus" ]]; then
+            log "INFO" "YouMAD? cleaning metadata and fixing track numbers (opus format) in: $album_dir"
+        else
+            log "INFO" "YouMAD? cleaning metadata and fixing track numbers in: $album_dir"
+        fi
 
         # Create a temporary file to store playlist order
         local temp_order="/tmp/youmad_playlist_order_$.txt"
@@ -287,8 +333,39 @@ clean_metadata() {
                 fi
             fi
             
-            # Set proper metadata with multiple track number formats for compatibility
-            if [[ "$FORMAT" == "m4a" ]]; then
+                        # Set proper metadata based on format
+            if [[ "$FORMAT" == "opus" ]]; then
+                # Use opustags for opus files - get album name from directory
+                local album_name=$(basename "$album_dir")
+                # Clean up album name (remove sanitization artifacts)
+                album_name=$(echo "$album_name" | sed 's/_/ /g')
+                
+                local temp_opus="/tmp/youmad_opus_temp_$$.opus"
+                
+                if opustags "$new_path" \
+                    --delete-all \
+                    --add "TITLE=$title" \
+                    --add "ARTIST=$artist" \
+                    --add "ALBUM=$album_name" \
+                    --add "ALBUMARTIST=$artist" \
+                    --add "TRACKNUMBER=$counter" \
+                    --add "RELEASETYPE=$plex_release_type" \
+                    -o "$temp_opus" >/dev/null 2>&1; then
+                    
+                    if mv "$temp_opus" "$new_path" 2>/dev/null; then
+                        if [[ "$VERBOSE" == true ]]; then
+                            log "INFO" "YouMAD? set opus track $counter metadata for: $(basename "$new_path")"
+                        fi
+                    else
+                        log "WARN" "YouMAD? failed to update opus metadata for: $(basename "$new_path")"
+                        rm -f "$temp_opus"
+                    fi
+                else
+                    log "WARN" "YouMAD? failed to set opus metadata for: $(basename "$new_path")"
+                    rm -f "$temp_opus"
+                fi
+                
+            elif [[ "$FORMAT" == "m4a" ]]; then
                 # For M4A files, use iTunes-compatible tags
                 exiftool -overwrite_original \
                     -Track="$counter" \
@@ -299,6 +376,11 @@ clean_metadata() {
                     -Description= -LongDescription= -Comment= \
                     "$new_path" >/dev/null 2>&1 || \
                 log "WARN" "YouMAD? failed to set metadata for: $(basename "$new_path")"
+                
+                if [[ "$VERBOSE" == true ]]; then
+                    log "INFO" "YouMAD? set track $counter metadata for: $(basename "$new_path")"
+                fi
+                
             else
                 # For other formats, use ID3 tags
                 exiftool -overwrite_original \
@@ -310,17 +392,23 @@ clean_metadata() {
                     -Description= -LongDescription= -Comment= \
                     "$new_path" >/dev/null 2>&1 || \
                 log "WARN" "YouMAD? failed to set metadata for: $(basename "$new_path")"
+                
+                if [[ "$VERBOSE" == true ]]; then
+                    log "INFO" "YouMAD? set track $counter metadata for: $(basename "$new_path")"
+                fi
             fi
             
-            if [[ "$VERBOSE" == true ]]; then
-                log "INFO" "YouMAD? set track $counter metadata for: $(basename "$new_path")"
-            fi
             ((counter++))
             
         done < "$temp_order"
 
         rm -f "$temp_order"
-        log "INFO" "YouMAD? track numbering and metadata completed for $((counter-1)) files"
+        
+        if [[ "$FORMAT" == "opus" ]]; then
+            log "INFO" "YouMAD? opus track numbering and metadata completed for $((counter-1)) files"
+        else
+            log "INFO" "YouMAD? track numbering and metadata completed for $((counter-1)) files"
+        fi
     else
         log "WARN" "YouMAD? album directory not found: $album_dir"
     fi
@@ -648,7 +736,7 @@ process_urls() {
 
 # Main execution
 main() {
-    log "INFO" "Starting YouMAD? v1.0.0"
+    log "INFO" "Starting YouMAD? v1.0.1"
 
     parse_arguments "$@"
     validate_or_create_config
