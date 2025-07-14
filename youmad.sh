@@ -247,7 +247,7 @@ find_latest_album_dir() {
     fi
 }
 
-# Clean metadata and set AlbumArtist - TAG SUPPORT FOR OPUS
+# Clean metadata and set AlbumArtist - FIXED VERSION WITH PROPER TRACK TAGS
 clean_metadata() {
     local artist="${1:-Various}"
     local album_dir="$2"
@@ -259,10 +259,13 @@ clean_metadata() {
     fi
 
     if [[ -d "$album_dir" ]]; then
-        if [[ "$FORMAT" == "opus" ]]; then
-            log "INFO" "YouMAD? cleaning metadata and fixing track numbers (opus format) in: $album_dir"
-        else
-            log "INFO" "YouMAD? cleaning metadata and fixing track numbers in: $album_dir"
+        # Only show this log message in verbose mode
+        if [[ "$VERBOSE" == true ]]; then
+            if [[ "$FORMAT" == "opus" ]]; then
+                log "INFO" "YouMAD? cleaning metadata and fixing track numbers (opus format) in: $album_dir"
+            else
+                log "INFO" "YouMAD? cleaning metadata and fixing track numbers in: $album_dir"
+            fi
         fi
 
         # Create a temporary file to store playlist order
@@ -333,7 +336,7 @@ clean_metadata() {
                 fi
             fi
             
-                        # Set proper metadata based on format
+            # Set proper metadata based on format
             if [[ "$FORMAT" == "opus" ]]; then
                 # Use opustags for opus files - get album name from directory
                 local album_name=$(basename "$album_dir")
@@ -404,10 +407,13 @@ clean_metadata() {
 
         rm -f "$temp_order"
         
-        if [[ "$FORMAT" == "opus" ]]; then
-            log "INFO" "YouMAD? opus track numbering and metadata completed for $((counter-1)) files"
-        else
-            log "INFO" "YouMAD? track numbering and metadata completed for $((counter-1)) files"
+        # Only show completion message in verbose mode
+        if [[ "$VERBOSE" == true ]]; then
+            if [[ "$FORMAT" == "opus" ]]; then
+                log "INFO" "YouMAD? opus track numbering and metadata completed for $((counter-1)) files"
+            else
+                log "INFO" "YouMAD? track numbering and metadata completed for $((counter-1)) files"
+            fi
         fi
     else
         log "WARN" "YouMAD? album directory not found: $album_dir"
