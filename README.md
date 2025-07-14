@@ -75,7 +75,7 @@ Format: `URL;Artist Name;Release Type`
 - `live` - Live albums (for when studio wasn't good enough)
 - `comp` - Compilations (greatest hits, etc.)
 
-This one is optional, end with just the `;` for an empty `RELEASETYPE` tag.
+This one is optional, Leave it out for the default (album). End with just the `;` for an empty `RELEASETYPE` tag.
 
 ### Step 2: Run The Thing
 ```bash
