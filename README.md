@@ -1,6 +1,6 @@
 # [YouMAD?](https://www.youmad.org)
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue) ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-green) ![License](https://img.shields.io/badge/license-BSD--3--Clause-orange)
+![Version](https://img.shields.io/badge/version-1.0.1-blue) ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-green) ![License](https://img.shields.io/badge/license-BSD--3--Clause-orange)
 
 **Your Music Album Downloader**
 
