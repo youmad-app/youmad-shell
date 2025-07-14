@@ -6,6 +6,8 @@
 
 Downloads albums from YouTube Music. Yeah, we know. Another downloader script. How original. But this one actually works without making you want to throw your laptop out the window.
 
+<img src="https://github.com/youmad-app/youmad-shell/blob/main/youmad-logo.png" width="500">
+
 ## Why YouMAD? Exists
 
 Because you're tired of:
