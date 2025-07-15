@@ -420,8 +420,8 @@ clean_metadata() {
 
         # First pass: collect all files and sort them by creation time to preserve playlist order
         if [[ "$PRESERVE_FORMAT" == true ]]; then
-            # In preserve mode, look for any audio files
-            find "$album_dir" -name "temp_*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" \) -exec stat -c "%Y %n" {} \; 2>/dev/null | \
+            # In preserve mode, look for any audio files (filter out image files)
+            find "$album_dir" -name "temp_*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" -o -name "*.flac" -o -name "*.wav" \) -exec stat -c "%Y %n" {} \; 2>/dev/null | \
             sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
         else
             # In convert mode, look for specific format
@@ -433,7 +433,7 @@ clean_metadata() {
         if [[ ! -s "$temp_order" ]]; then
             if [[ "$PRESERVE_FORMAT" == true ]]; then
                 # In preserve mode, look for any audio files
-                find "$album_dir" -name "temp_*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" \) -exec stat -f "%m %N" {} \; 2>/dev/null | \
+                find "$album_dir" -name "temp_*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" -o -name "*.flac" -o -name "*.wav" \) -exec stat -f "%m %N" {} \; 2>/dev/null | \
                 sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
             else
                 # In convert mode, look for specific format
@@ -446,7 +446,7 @@ clean_metadata() {
         if [[ ! -s "$temp_order" ]]; then
             if [[ "$PRESERVE_FORMAT" == true ]]; then
                 # In preserve mode, look for any audio files
-                find "$album_dir" -name "*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" \) -exec stat -c "%Y %n" {} \; 2>/dev/null | \
+                find "$album_dir" -name "*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" -o -name "*.flac" -o -name "*.wav" \) -exec stat -c "%Y %n" {} \; 2>/dev/null | \
                 sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
             else
                 # In convert mode, look for specific format
@@ -457,7 +457,7 @@ clean_metadata() {
             # BSD stat fallback
             if [[ ! -s "$temp_order" ]]; then
                 if [[ "$PRESERVE_FORMAT" == true ]]; then
-                    find "$album_dir" -name "*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" \) -exec stat -f "%m %N" {} \; 2>/dev/null | \
+                    find "$album_dir" -name "*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" -o -name "*.flac" -o -name "*.wav" \) -exec stat -f "%m %N" {} \; 2>/dev/null | \
                     sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
                 else
                     find "$album_dir" -name "*.${FORMAT}" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | \
@@ -469,7 +469,7 @@ clean_metadata() {
         # If we still have no ordered list, just use alphabetical order
         if [[ ! -s "$temp_order" ]]; then
             if [[ "$PRESERVE_FORMAT" == true ]]; then
-                find "$album_dir" -name "*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" \) | sort > "$temp_order"
+                find "$album_dir" -name "*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" -o -name "*.flac" -o -name "*.wav" \) | sort > "$temp_order"
             else
                 find "$album_dir" -name "*.${FORMAT}" -type f | sort > "$temp_order"
             fi
@@ -527,7 +527,7 @@ clean_metadata() {
 
                 case "$file_ext" in
                     "opus")
-                        local temp_opus="/tmp/youmad_opus_temp_$.opus"
+                        local temp_opus="/tmp/youmad_opus_temp_$$.opus"
                         if opustags "$new_path" \
                             --delete-all \
                             --add "TITLE=$title" \
@@ -549,7 +549,7 @@ clean_metadata() {
                             -AlbumArtist="$artist" \
                             "$new_path" >/dev/null 2>&1
                         ;;
-                    "mp3"|"flac"|"wav")
+                    "mp3"|"flac"|"wav"|"webm"|"mkv"|"mka")
                         exiftool -overwrite_original \
                             -Track="$counter" \
                             -TRCK="$counter" \
@@ -754,7 +754,7 @@ download_album() {
     fi
 
     # Extract individual track URLs
-    local temp_urls="/tmp/youmad_track_urls_$$.txt"
+    local temp_urls="/tmp/youmad_track_urls_$.txt"
 
     # Record start time for duration calculation
     local start_time=$(date +%s)
