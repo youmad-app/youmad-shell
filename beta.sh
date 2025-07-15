@@ -1,6 +1,5 @@
 #!/bin/bash
-# YouMAD? - Your Music Album Downloader v1.1.0-beta
-# Added playlist support
+# YouMAD? - Your Music Album Downloader v1.0.1
 
 set -euo pipefail
 
@@ -29,6 +28,7 @@ DRY_RUN=false
 OVERRIDE=false
 VERBOSE=false
 PLAYLIST_MODE=false
+PRESERVE_FORMAT=false
 
 # Logging function
 log() {
@@ -52,6 +52,7 @@ OPTIONS:
     --override    Skip download archive check (re-download everything)
     --verbose     Enable verbose output
     --playlist    Simple playlist mode (no metadata processing)
+    --preserve    Preserve original audio format (no re-encoding for max quality)
     --help        Show this help message
 
 REQUIREMENTS:
@@ -145,6 +146,10 @@ parse_arguments() {
                 PLAYLIST_MODE=true
                 log "INFO" "YouMAD? playlist mode enabled."
                 ;;
+            --preserve)
+                PRESERVE_FORMAT=true
+                log "INFO" "YouMAD? preserve format mode enabled - no re-encoding."
+                ;;
             --help|-h)
                 show_usage
                 exit 0
@@ -221,7 +226,7 @@ check_dependencies() {
 
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         log "ERROR" "YouMAD? missing dependencies: ${missing_deps[*]}"
-        
+
         # Provide helpful installation instructions
         echo ""
         echo "Installation instructions:"
@@ -298,9 +303,24 @@ download_playlist() {
     local start_time=$(date +%s)
 
     # Prepare yt-dlp arguments for playlist download
-    local playlist_args=(
-        --extract-audio --audio-format "$FORMAT" --audio-quality 0
-        --embed-metadata --add-metadata --embed-thumbnail
+    local playlist_args=()
+
+    if [[ "$PRESERVE_FORMAT" == true ]]; then
+        # Preserve original format - no re-encoding but still embed thumbnails when possible
+        playlist_args+=(
+            --embed-metadata --add-metadata --embed-thumbnail
+            --format "bestaudio"
+            --ignore-errors  # Continue on thumbnail errors
+        )
+    else
+        # Convert to specified format
+        playlist_args+=(
+            --extract-audio --audio-format "$FORMAT" --audio-quality 0
+            --embed-metadata --add-metadata --embed-thumbnail
+        )
+    fi
+
+    playlist_args+=(
         --no-mtime --limit-rate "$LIMIT_RATE"
         --sleep-interval 3 --max-sleep-interval 8
         --retries 3 --fragment-retries 3
@@ -399,40 +419,71 @@ clean_metadata() {
         > "$temp_order"
 
         # First pass: collect all files and sort them by creation time to preserve playlist order
-        find "$album_dir" -name "temp_*.${FORMAT}" -type f -exec stat -c "%Y %n" {} \; 2>/dev/null | \
-        sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
+        if [[ "$PRESERVE_FORMAT" == true ]]; then
+            # In preserve mode, look for any audio files
+            find "$album_dir" -name "temp_*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" \) -exec stat -c "%Y %n" {} \; 2>/dev/null | \
+            sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
+        else
+            # In convert mode, look for specific format
+            find "$album_dir" -name "temp_*.${FORMAT}" -type f -exec stat -c "%Y %n" {} \; 2>/dev/null | \
+            sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
+        fi
 
         # If stat -c doesn't work (macOS), try BSD stat
         if [[ ! -s "$temp_order" ]]; then
-            find "$album_dir" -name "temp_*.${FORMAT}" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | \
-            sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
+            if [[ "$PRESERVE_FORMAT" == true ]]; then
+                # In preserve mode, look for any audio files
+                find "$album_dir" -name "temp_*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" \) -exec stat -f "%m %N" {} \; 2>/dev/null | \
+                sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
+            else
+                # In convert mode, look for specific format
+                find "$album_dir" -name "temp_*.${FORMAT}" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | \
+                sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
+            fi
         fi
 
         # If still no files, try without temp_ prefix
         if [[ ! -s "$temp_order" ]]; then
-            find "$album_dir" -name "*.${FORMAT}" -type f -exec stat -c "%Y %n" {} \; 2>/dev/null | \
-            sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
-            
+            if [[ "$PRESERVE_FORMAT" == true ]]; then
+                # In preserve mode, look for any audio files
+                find "$album_dir" -name "*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" \) -exec stat -c "%Y %n" {} \; 2>/dev/null | \
+                sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
+            else
+                # In convert mode, look for specific format
+                find "$album_dir" -name "*.${FORMAT}" -type f -exec stat -c "%Y %n" {} \; 2>/dev/null | \
+                sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
+            fi
+
             # BSD stat fallback
             if [[ ! -s "$temp_order" ]]; then
-                find "$album_dir" -name "*.${FORMAT}" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | \
-                sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
+                if [[ "$PRESERVE_FORMAT" == true ]]; then
+                    find "$album_dir" -name "*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" \) -exec stat -f "%m %N" {} \; 2>/dev/null | \
+                    sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
+                else
+                    find "$album_dir" -name "*.${FORMAT}" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | \
+                    sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
+                fi
             fi
         fi
 
         # If we still have no ordered list, just use alphabetical order
         if [[ ! -s "$temp_order" ]]; then
-            find "$album_dir" -name "*.${FORMAT}" -type f | sort > "$temp_order"
+            if [[ "$PRESERVE_FORMAT" == true ]]; then
+                find "$album_dir" -name "*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" \) | sort > "$temp_order"
+            else
+                find "$album_dir" -name "*.${FORMAT}" -type f | sort > "$temp_order"
+            fi
         fi
 
         # Process files in playlist order
         local counter=1
         while IFS= read -r file; do
             [[ ! -f "$file" ]] && continue
-            
+
             local filename=$(basename "$file")
             local title=""
-            
+            local file_ext="${filename##*.}"
+
             # Extract title from filename
             if [[ "$filename" =~ ^temp_(.*)\.[^.]+$ ]]; then
                 title="${BASH_REMATCH[1]}"
@@ -445,11 +496,17 @@ clean_metadata() {
             else
                 title="Track $counter"
             fi
-            
+
             local new_name
-            new_name=$(printf "%02d - %s.%s" "$counter" "$title" "$FORMAT")
+            if [[ "$PRESERVE_FORMAT" == true ]]; then
+                # Keep original extension when preserving format
+                new_name=$(printf "%02d - %s.%s" "$counter" "$title" "$file_ext")
+            else
+                # Use configured format extension
+                new_name=$(printf "%02d - %s.%s" "$counter" "$title" "$FORMAT")
+            fi
             local new_path="$album_dir/$new_name"
-            
+
             # Rename file if needed
             if [[ "$file" != "$new_path" ]]; then
                 if mv "$file" "$new_path" 2>/dev/null; then
@@ -461,16 +518,67 @@ clean_metadata() {
                     new_path="$file"
                 fi
             fi
-            
+
             # Set proper metadata based on format
-            if [[ "$FORMAT" == "opus" ]]; then
+            if [[ "$PRESERVE_FORMAT" == true ]]; then
+                # In preserve mode, still do basic metadata cleanup but handle multiple formats
+                local album_name=$(basename "$album_dir")
+                album_name=$(echo "$album_name" | sed 's/_/ /g')
+
+                case "$file_ext" in
+                    "opus")
+                        local temp_opus="/tmp/youmad_opus_temp_$.opus"
+                        if opustags "$new_path" \
+                            --delete-all \
+                            --add "TITLE=$title" \
+                            --add "ARTIST=$artist" \
+                            --add "ALBUM=$album_name" \
+                            --add "ALBUMARTIST=$artist" \
+                            --add "TRACKNUMBER=$counter" \
+                            -o "$temp_opus" >/dev/null 2>&1; then
+                            mv "$temp_opus" "$new_path" 2>/dev/null || rm -f "$temp_opus"
+                        fi
+                        ;;
+                    "m4a"|"mp4"|"m4v")
+                        exiftool -overwrite_original \
+                            -Track="$counter" \
+                            -TrackNumber="$counter" \
+                            -Title="$title" \
+                            -Artist="$artist" \
+                            -Album="$album_name" \
+                            -AlbumArtist="$artist" \
+                            "$new_path" >/dev/null 2>&1
+                        ;;
+                    "mp3"|"flac"|"wav")
+                        exiftool -overwrite_original \
+                            -Track="$counter" \
+                            -TRCK="$counter" \
+                            -Title="$title" \
+                            -Artist="$artist" \
+                            -Album="$album_name" \
+                            -AlbumArtist="$artist" \
+                            "$new_path" >/dev/null 2>&1
+                        ;;
+                    *)
+                        # For unsupported formats, just log
+                        if [[ "$VERBOSE" == true ]]; then
+                            log "INFO" "YouMAD? skipping metadata for unsupported format: $file_ext"
+                        fi
+                        ;;
+                esac
+
+                if [[ "$VERBOSE" == true ]]; then
+                    log "INFO" "YouMAD? set track $counter metadata (preserve mode) for: $(basename "$new_path")"
+                fi
+
+            elif [[ "$FORMAT" == "opus" ]]; then
                 # Use opustags for opus files - get album name from directory
                 local album_name=$(basename "$album_dir")
                 # Clean up album name (remove sanitization artifacts)
                 album_name=$(echo "$album_name" | sed 's/_/ /g')
-                
+
                 local temp_opus="/tmp/youmad_opus_temp_$$.opus"
-                
+
                 if opustags "$new_path" \
                     --delete-all \
                     --add "TITLE=$title" \
@@ -480,7 +588,7 @@ clean_metadata() {
                     --add "TRACKNUMBER=$counter" \
                     --add "RELEASETYPE=$plex_release_type" \
                     -o "$temp_opus" >/dev/null 2>&1; then
-                    
+
                     if mv "$temp_opus" "$new_path" 2>/dev/null; then
                         if [[ "$VERBOSE" == true ]]; then
                             log "INFO" "YouMAD? set opus track $counter metadata for: $(basename "$new_path")"
@@ -493,7 +601,7 @@ clean_metadata() {
                     log "WARN" "YouMAD? failed to set opus metadata for: $(basename "$new_path")"
                     rm -f "$temp_opus"
                 fi
-                
+
             elif [[ "$FORMAT" == "m4a" ]]; then
                 # For M4A files, use iTunes-compatible tags
                 exiftool -overwrite_original \
@@ -505,11 +613,11 @@ clean_metadata() {
                     -Description= -LongDescription= -Comment= \
                     "$new_path" >/dev/null 2>&1 || \
                 log "WARN" "YouMAD? failed to set metadata for: $(basename "$new_path")"
-                
+
                 if [[ "$VERBOSE" == true ]]; then
                     log "INFO" "YouMAD? set track $counter metadata for: $(basename "$new_path")"
                 fi
-                
+
             else
                 # For other formats, use ID3 tags
                 exiftool -overwrite_original \
@@ -521,18 +629,18 @@ clean_metadata() {
                     -Description= -LongDescription= -Comment= \
                     "$new_path" >/dev/null 2>&1 || \
                 log "WARN" "YouMAD? failed to set metadata for: $(basename "$new_path")"
-                
+
                 if [[ "$VERBOSE" == true ]]; then
                     log "INFO" "YouMAD? set track $counter metadata for: $(basename "$new_path")"
                 fi
             fi
-            
+
             ((counter++))
-            
+
         done < "$temp_order"
 
         rm -f "$temp_order"
-        
+
         # Only show completion message in verbose mode
         if [[ "$VERBOSE" == true ]]; then
             if [[ "$FORMAT" == "opus" ]]; then
@@ -682,13 +790,29 @@ download_album() {
         fi
 
         # Prepare yt-dlp arguments with temporary filename
-        local track_args=(
-            --extract-audio --audio-format "$FORMAT" --audio-quality 0
-            --embed-metadata --add-metadata --embed-thumbnail
+        local track_args=()
+
+        if [[ "$PRESERVE_FORMAT" == true ]]; then
+            # Preserve original format - no re-encoding but still embed thumbnails when possible
+            track_args+=(
+                --embed-metadata --add-metadata --embed-thumbnail
+                --format "bestaudio"
+                --ignore-errors  # Continue on thumbnail errors
+                -o "${artist_clean}/%(album,Unknown Album|sanitize)s/temp_%(title|sanitize)s.%(ext)s"
+            )
+        else
+            # Convert to specified format
+            track_args+=(
+                --extract-audio --audio-format "$FORMAT" --audio-quality 0
+                --embed-metadata --add-metadata --embed-thumbnail
+                -o "${artist_clean}/%(album,Unknown Album|sanitize)s/temp_%(title|sanitize)s.%(ext)s"
+            )
+        fi
+
+        track_args+=(
             --no-mtime --limit-rate "$LIMIT_RATE"
             --sleep-interval 3 --max-sleep-interval 8
             --retries 3 --fragment-retries 3
-            -o "${artist_clean}/%(album,Unknown Album|sanitize)s/temp_%(title|sanitize)s.%(ext)s"
         )
 
         # Add verbosity flags
