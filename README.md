@@ -38,7 +38,7 @@ sudo apt install ffmpeg exiftool jq opustags
 pip install yt-dlp --user
 
 # macOS (fancy, aren't we?)
-brew install ffmpeg exiftool jq yt-dlp opustags
+brew install ffmpeg exiftool jq yt-dlp
 ```
 
 **Get YouMAD?:**
