@@ -141,7 +141,7 @@ Because unlike some people, we believe in organization.
 ✅ **High-quality audio** - Not potato quality like some tools  
 ✅ **Proper metadata** - Album art, track numbers, cleaned up and Plex-ready  
 ✅ **Organized files** - Sorted like a normal human being would  
-✅ **Format flexibility** - Convert to your preferred format or keep originals
+✅ **Format flexibility** - Convert to your preferred format or keep originals  
 ✅ **No duplicates** - Because we're not savages  
 ✅ **Clean filenames** - No weird Unicode disasters  
 ✅ **Cross-platform** - Works on your Linux, Mac, or Windows-with-WSL setup  
