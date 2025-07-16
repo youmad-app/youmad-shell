@@ -27,6 +27,8 @@ USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 DRY_RUN=false
 OVERRIDE=false
 VERBOSE=false
+PLAYLIST_MODE=false
+PRESERVE_FORMAT=false
 
 # Logging function
 log() {
@@ -49,11 +51,13 @@ OPTIONS:
     --dry-run     Show what would be downloaded without actually downloading
     --override    Skip download archive check (re-download everything)
     --verbose     Enable verbose output
+    --playlist    Simple playlist mode (no metadata processing)
+    --preserve    Preserve original audio format (no re-encoding for max quality)
     --help        Show this help message
 
 REQUIREMENTS:
     - urls.txt file with URLs and artists (format: URL;Artist Name[;ReleaseType])
-    - yt-dlp, ffmpeg, and exiftool installed
+    - yt-dlp, ffmpeg, and exiftool installed (exiftool not needed for --playlist mode)
 
 RELEASE TYPES:
     - album (default)
@@ -64,6 +68,13 @@ RELEASE TYPES:
     - soundtrack (album;soundtrack)
     - demo (album;demo)
     - remix (album;remix)
+
+PLAYLIST MODE:
+    - Downloads entire playlist directly without individual track processing
+    - Simple folder structure: ./Artist/Playlist-name/Track.ext
+    - Preserves original track names from YouTube
+    - No metadata processing or track renumbering
+    - Honors download history (won't re-download existing files)
 EOF
 }
 
@@ -131,6 +142,14 @@ parse_arguments() {
                 VERBOSE=true
                 log "INFO" "YouMAD? verbose mode enabled."
                 ;;
+            --playlist)
+                PLAYLIST_MODE=true
+                log "INFO" "YouMAD? playlist mode enabled."
+                ;;
+            --preserve)
+                PRESERVE_FORMAT=true
+                log "INFO" "YouMAD? preserve format mode enabled - no re-encoding."
+                ;;
             --help|-h)
                 show_usage
                 exit 0
@@ -150,7 +169,18 @@ initialize_files() {
 
     if [[ ! -f "$URL_FILE" ]]; then
         log "INFO" "Creating example urls.txt file..."
-        cat > "$URL_FILE" <<EOF
+        if [[ "$PLAYLIST_MODE" == true ]]; then
+            cat > "$URL_FILE" <<EOF
+# YouMAD? - URLs File (Playlist Mode)
+# Format: URL;Artist Name
+#
+# Examples:
+# https://music.youtube.com/playlist?list=PLrAl6cWylHjwKpVROBfZyY5jzBCMjFhgs;My Artist
+# https://www.youtube.com/playlist?list=PLrAl6cWylHjwKpVROBfZyY5jzBCMjFhgs;Another Artist
+
+EOF
+        else
+            cat > "$URL_FILE" <<EOF
 # YouMAD? - URLs File
 # Format: URL;Artist Name[;ReleaseType]
 # Release types: album (default), ep, single, live, comp, soundtrack, demo, remix
@@ -161,6 +191,7 @@ initialize_files() {
 # https://music.youtube.com/playlist?list=OLAK5uy_example;Artist Name;live
 
 EOF
+        fi
         log "INFO" "Created $URL_FILE with examples. Please add your URLs and run YouMAD? again."
         exit 0
     fi
@@ -177,22 +208,25 @@ check_dependencies() {
         fi
     done
 
-    # Check format-specific dependencies
-    if [[ "$FORMAT" == "opus" ]]; then
-        # For opus format, we need opustags instead of exiftool
-        if ! command -v "opustags" >/dev/null 2>&1; then
-            missing_deps+=("opustags")
-        fi
-    else
-        # For all other formats, we need exiftool
-        if ! command -v "exiftool" >/dev/null 2>&1; then
-            missing_deps+=("exiftool")
+    # Skip metadata tool checks in playlist mode
+    if [[ "$PLAYLIST_MODE" != true ]]; then
+        # Check format-specific dependencies
+        if [[ "$FORMAT" == "opus" ]]; then
+            # For opus format, we need opustags instead of exiftool
+            if ! command -v "opustags" >/dev/null 2>&1; then
+                missing_deps+=("opustags")
+            fi
+        else
+            # For all other formats, we need exiftool
+            if ! command -v "exiftool" >/dev/null 2>&1; then
+                missing_deps+=("exiftool")
+            fi
         fi
     fi
 
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         log "ERROR" "YouMAD? missing dependencies: ${missing_deps[*]}"
-        
+
         # Provide helpful installation instructions
         echo ""
         echo "Installation instructions:"
@@ -219,11 +253,123 @@ check_dependencies() {
         exit 1
     fi
 
-    if [[ "$FORMAT" == "opus" ]]; then
+    if [[ "$PLAYLIST_MODE" == true ]]; then
+        log "INFO" "YouMAD? dependencies found (playlist mode): yt-dlp, ffmpeg, jq"
+    elif [[ "$FORMAT" == "opus" ]]; then
         log "INFO" "YouMAD? dependencies found: yt-dlp, ffmpeg, opustags, jq"
     else
         log "INFO" "YouMAD? dependencies found: yt-dlp, ffmpeg, exiftool, jq"
     fi
+}
+
+# Simple playlist download function
+download_playlist() {
+    local url="$1"
+    local artist="${2:-Unknown Artist}"
+    local line_num="${3:-}"
+
+    # Additional sanitization for filesystem safety
+    local artist_clean="${artist//&/and}"
+    artist_clean=$(echo "$artist_clean" | tr -d '/<>:"|?*' | tr ' ' '_')
+
+    if [[ "$DRY_RUN" == true ]]; then
+        local playlist_title
+        playlist_title=$(get_album_info "$url")
+
+        if [[ "$playlist_title" != "Unknown Album" ]]; then
+            if [[ "$VERBOSE" == true ]]; then
+                log "INFO" "YouMAD? would download playlist '$playlist_title' by '$artist'"
+            else
+                printf "  Would download playlist: %s - %s\n" "$artist" "$playlist_title"
+            fi
+        else
+            log "WARN" "YouMAD? failed to get playlist info for '$artist' - URL may be invalid"
+        fi
+        return 0
+    fi
+
+    # Get playlist info for display
+    local playlist_title
+    playlist_title=$(get_album_info "$url")
+
+    if [[ "$VERBOSE" == true ]]; then
+        log "INFO" "YouMAD? starting playlist download for $artist: $url"
+    else
+        printf "\n[%s/%s] %s - %s (playlist mode)\n" "$line_num" "$(wc -l < "$URL_FILE" | tr -d ' ')" "$artist" "${playlist_title:-Playlist}"
+        printf "Downloading playlist... "
+    fi
+
+    # Record start time for duration calculation
+    local start_time=$(date +%s)
+
+    # Prepare yt-dlp arguments for playlist download
+    local playlist_args=()
+
+    if [[ "$PRESERVE_FORMAT" == true ]]; then
+        # Preserve original format - no re-encoding, no thumbnail embedding
+        playlist_args+=(
+            --embed-metadata --add-metadata
+            --format "bestaudio"
+            --no-embed-thumbnail
+        )
+    else
+        # Convert to specified format
+        playlist_args+=(
+            --extract-audio --audio-format "$FORMAT" --audio-quality 0
+            --embed-metadata --add-metadata --embed-thumbnail
+        )
+    fi
+
+    playlist_args+=(
+        --no-mtime --limit-rate "$LIMIT_RATE"
+        --sleep-interval 3 --max-sleep-interval 8
+        --retries 3 --fragment-retries 3
+        -o "${artist_clean}/%(playlist,Unknown Playlist|sanitize)s/%(title|sanitize)s.%(ext)s"
+    )
+
+    # Add verbosity flags
+    if [[ "$VERBOSE" == true ]]; then
+        playlist_args+=(--progress)
+    else
+        playlist_args+=(--no-progress --quiet)
+    fi
+
+    # Add download archive unless overriding
+    if [[ "$OVERRIDE" != true ]]; then
+        playlist_args+=(--download-archive "$DOWNLOAD_ARCHIVE")
+    fi
+
+    # Download playlist with appropriate output level
+    if [[ "$VERBOSE" == true ]]; then
+        # Full output in verbose mode
+        if ! yt-dlp "${playlist_args[@]}" "$url" 2>&1 | tee -a "$ACTIVITY_LOG"; then
+            log "ERROR" "YouMAD? failed to download playlist: $url"
+            return 1
+        fi
+    else
+        # Quiet mode - only show completion and errors
+        if ! yt-dlp "${playlist_args[@]}" "$url" >> "$ACTIVITY_LOG" 2>&1; then
+            log "ERROR" "YouMAD? failed to download playlist: $url"
+            return 1
+        else
+            printf "done\n"
+        fi
+    fi
+
+    # Calculate duration
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    local minutes=$((duration / 60))
+    local seconds=$((duration % 60))
+
+    # Summary
+    if [[ "$VERBOSE" == true ]]; then
+        log "INFO" "YouMAD? playlist download completed successfully for $artist"
+    else
+        printf "  ✅ Playlist download completed successfully in %d minutes and %d seconds\n" "$minutes" "$seconds"
+    fi
+
+    return 0
 }
 
 # Cross-platform function to find latest directory
@@ -273,40 +419,71 @@ clean_metadata() {
         > "$temp_order"
 
         # First pass: collect all files and sort them by creation time to preserve playlist order
-        find "$album_dir" -name "temp_*.${FORMAT}" -type f -exec stat -c "%Y %n" {} \; 2>/dev/null | \
-        sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
+        if [[ "$PRESERVE_FORMAT" == true ]]; then
+            # In preserve mode, look for any audio files (filter out image files)
+            find "$album_dir" -name "temp_*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" -o -name "*.flac" -o -name "*.wav" \) -exec stat -c "%Y %n" {} \; 2>/dev/null | \
+            sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
+        else
+            # In convert mode, look for specific format
+            find "$album_dir" -name "temp_*.${FORMAT}" -type f -exec stat -c "%Y %n" {} \; 2>/dev/null | \
+            sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
+        fi
 
         # If stat -c doesn't work (macOS), try BSD stat
         if [[ ! -s "$temp_order" ]]; then
-            find "$album_dir" -name "temp_*.${FORMAT}" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | \
-            sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
+            if [[ "$PRESERVE_FORMAT" == true ]]; then
+                # In preserve mode, look for any audio files
+                find "$album_dir" -name "temp_*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" -o -name "*.flac" -o -name "*.wav" \) -exec stat -f "%m %N" {} \; 2>/dev/null | \
+                sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
+            else
+                # In convert mode, look for specific format
+                find "$album_dir" -name "temp_*.${FORMAT}" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | \
+                sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
+            fi
         fi
 
         # If still no files, try without temp_ prefix
         if [[ ! -s "$temp_order" ]]; then
-            find "$album_dir" -name "*.${FORMAT}" -type f -exec stat -c "%Y %n" {} \; 2>/dev/null | \
-            sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
-            
+            if [[ "$PRESERVE_FORMAT" == true ]]; then
+                # In preserve mode, look for any audio files
+                find "$album_dir" -name "*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" -o -name "*.flac" -o -name "*.wav" \) -exec stat -c "%Y %n" {} \; 2>/dev/null | \
+                sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
+            else
+                # In convert mode, look for specific format
+                find "$album_dir" -name "*.${FORMAT}" -type f -exec stat -c "%Y %n" {} \; 2>/dev/null | \
+                sort -n | cut -d' ' -f2- > "$temp_order" 2>/dev/null
+            fi
+
             # BSD stat fallback
             if [[ ! -s "$temp_order" ]]; then
-                find "$album_dir" -name "*.${FORMAT}" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | \
-                sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
+                if [[ "$PRESERVE_FORMAT" == true ]]; then
+                    find "$album_dir" -name "*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" -o -name "*.flac" -o -name "*.wav" \) -exec stat -f "%m %N" {} \; 2>/dev/null | \
+                    sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
+                else
+                    find "$album_dir" -name "*.${FORMAT}" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | \
+                    sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order" 2>/dev/null
+                fi
             fi
         fi
 
         # If we still have no ordered list, just use alphabetical order
         if [[ ! -s "$temp_order" ]]; then
-            find "$album_dir" -name "*.${FORMAT}" -type f | sort > "$temp_order"
+            if [[ "$PRESERVE_FORMAT" == true ]]; then
+                find "$album_dir" -name "*.*" -type f \( -name "*.opus" -o -name "*.m4a" -o -name "*.mp3" -o -name "*.webm" -o -name "*.aac" -o -name "*.flac" -o -name "*.wav" \) | sort > "$temp_order"
+            else
+                find "$album_dir" -name "*.${FORMAT}" -type f | sort > "$temp_order"
+            fi
         fi
 
         # Process files in playlist order
         local counter=1
         while IFS= read -r file; do
             [[ ! -f "$file" ]] && continue
-            
+
             local filename=$(basename "$file")
             local title=""
-            
+            local file_ext="${filename##*.}"
+
             # Extract title from filename
             if [[ "$filename" =~ ^temp_(.*)\.[^.]+$ ]]; then
                 title="${BASH_REMATCH[1]}"
@@ -319,11 +496,17 @@ clean_metadata() {
             else
                 title="Track $counter"
             fi
-            
+
             local new_name
-            new_name=$(printf "%02d - %s.%s" "$counter" "$title" "$FORMAT")
+            if [[ "$PRESERVE_FORMAT" == true ]]; then
+                # Keep original extension when preserving format
+                new_name=$(printf "%02d - %s.%s" "$counter" "$title" "$file_ext")
+            else
+                # Use configured format extension
+                new_name=$(printf "%02d - %s.%s" "$counter" "$title" "$FORMAT")
+            fi
             local new_path="$album_dir/$new_name"
-            
+
             # Rename file if needed
             if [[ "$file" != "$new_path" ]]; then
                 if mv "$file" "$new_path" 2>/dev/null; then
@@ -335,16 +518,125 @@ clean_metadata() {
                     new_path="$file"
                 fi
             fi
-            
+
             # Set proper metadata based on format
-            if [[ "$FORMAT" == "opus" ]]; then
+            if [[ "$PRESERVE_FORMAT" == true ]]; then
+                # In preserve mode, still do basic metadata cleanup but handle multiple formats
+                local album_name=$(basename "$album_dir")
+                album_name=$(echo "$album_name" | sed 's/_/ /g')
+                
+                # Try to extract year from album name or use current year
+                local year=$(date +%Y)
+                if [[ "$album_name" =~ [[:space:]]([0-9]{4})[[:space:]]* ]]; then
+                    year="${BASH_REMATCH[1]}"
+                fi
+
+                case "$file_ext" in
+                    "opus")
+                        local temp_opus="/tmp/youmad_opus_temp_$$.opus"
+                        if opustags "$new_path" \
+                            --delete-all \
+                            --add "TITLE=$title" \
+                            --add "ARTIST=$artist" \
+                            --add "ALBUM=$album_name" \
+                            --add "ALBUMARTIST=$artist" \
+                            --add "TRACKNUMBER=$counter" \
+                            --add "DATE=$year" \
+                            -o "$temp_opus" >/dev/null 2>&1; then
+                            mv "$temp_opus" "$new_path" 2>/dev/null || rm -f "$temp_opus"
+                        fi
+                        ;;
+                    "m4a"|"mp4"|"m4v")
+                        exiftool -overwrite_original \
+                            -Track="$counter" \
+                            -TrackNumber="$counter" \
+                            -Title="$title" \
+                            -Artist="$artist" \
+                            -Album="$album_name" \
+                            -AlbumArtist="$artist" \
+                            -Year="$year" \
+                            -Date="$year" \
+                            "$new_path" >/dev/null 2>&1
+                        ;;
+                    "mp3")
+                        exiftool -overwrite_original \
+                            -Track="$counter" \
+                            -TRCK="$counter" \
+                            -Title="$title" \
+                            -Artist="$artist" \
+                            -Album="$album_name" \
+                            -AlbumArtist="$artist" \
+                            -Year="$year" \
+                            -Date="$year" \
+                            -TYER="$year" \
+                            -TDRC="$year" \
+                            "$new_path" >/dev/null 2>&1
+                        ;;
+                    "flac")
+                        exiftool -overwrite_original \
+                            -Track="$counter" \
+                            -TRACKNUMBER="$counter" \
+                            -Title="$title" \
+                            -Artist="$artist" \
+                            -Album="$album_name" \
+                            -AlbumArtist="$artist" \
+                            -Year="$year" \
+                            -Date="$year" \
+                            "$new_path" >/dev/null 2>&1
+                        ;;
+                    "webm"|"mkv"|"mka")
+                        exiftool -overwrite_original \
+                            -Track="$counter" \
+                            -TRCK="$counter" \
+                            -Title="$title" \
+                            -Artist="$artist" \
+                            -Album="$album_name" \
+                            -AlbumArtist="$artist" \
+                            -Year="$year" \
+                            -Date="$year" \
+                            "$new_path" >/dev/null 2>&1
+                        ;;
+                    "wav")
+                        exiftool -overwrite_original \
+                            -Track="$counter" \
+                            -Title="$title" \
+                            -Artist="$artist" \
+                            -Album="$album_name" \
+                            -AlbumArtist="$artist" \
+                            -Year="$year" \
+                            "$new_path" >/dev/null 2>&1
+                        ;;
+                    *)
+                        # For unsupported formats, try generic approach
+                        exiftool -overwrite_original \
+                            -Track="$counter" \
+                            -TRCK="$counter" \
+                            -Title="$title" \
+                            -Artist="$artist" \
+                            -Album="$album_name" \
+                            -AlbumArtist="$artist" \
+                            -Year="$year" \
+                            -Date="$year" \
+                            "$new_path" >/dev/null 2>&1
+                        
+                        if [[ "$VERBOSE" == true ]]; then
+                            log "INFO" "YouMAD? attempted generic metadata for format: $file_ext"
+                        fi
+                        ;;
+                esac
+
+                if [[ "$VERBOSE" == true ]]; then
+                    log "INFO" "YouMAD? set track $counter metadata (preserve mode) for: $(basename "$new_path")"
+                fi
+
+            elif [[ "$FORMAT" == "opus" ]]; then
                 # Use opustags for opus files - get album name from directory
                 local album_name=$(basename "$album_dir")
                 # Clean up album name (remove sanitization artifacts)
                 album_name=$(echo "$album_name" | sed 's/_/ /g')
-                
+
                 local temp_opus="/tmp/youmad_opus_temp_$$.opus"
-                
+
                 if opustags "$new_path" \
                     --delete-all \
                     --add "TITLE=$title" \
@@ -354,7 +646,7 @@ clean_metadata() {
                     --add "TRACKNUMBER=$counter" \
                     --add "RELEASETYPE=$plex_release_type" \
                     -o "$temp_opus" >/dev/null 2>&1; then
-                    
+
                     if mv "$temp_opus" "$new_path" 2>/dev/null; then
                         if [[ "$VERBOSE" == true ]]; then
                             log "INFO" "YouMAD? set opus track $counter metadata for: $(basename "$new_path")"
@@ -367,7 +659,7 @@ clean_metadata() {
                     log "WARN" "YouMAD? failed to set opus metadata for: $(basename "$new_path")"
                     rm -f "$temp_opus"
                 fi
-                
+
             elif [[ "$FORMAT" == "m4a" ]]; then
                 # For M4A files, use iTunes-compatible tags
                 exiftool -overwrite_original \
@@ -379,11 +671,11 @@ clean_metadata() {
                     -Description= -LongDescription= -Comment= \
                     "$new_path" >/dev/null 2>&1 || \
                 log "WARN" "YouMAD? failed to set metadata for: $(basename "$new_path")"
-                
+
                 if [[ "$VERBOSE" == true ]]; then
                     log "INFO" "YouMAD? set track $counter metadata for: $(basename "$new_path")"
                 fi
-                
+
             else
                 # For other formats, use ID3 tags
                 exiftool -overwrite_original \
@@ -395,18 +687,18 @@ clean_metadata() {
                     -Description= -LongDescription= -Comment= \
                     "$new_path" >/dev/null 2>&1 || \
                 log "WARN" "YouMAD? failed to set metadata for: $(basename "$new_path")"
-                
+
                 if [[ "$VERBOSE" == true ]]; then
                     log "INFO" "YouMAD? set track $counter metadata for: $(basename "$new_path")"
                 fi
             fi
-            
+
             ((counter++))
-            
+
         done < "$temp_order"
 
         rm -f "$temp_order"
-        
+
         # Only show completion message in verbose mode
         if [[ "$VERBOSE" == true ]]; then
             if [[ "$FORMAT" == "opus" ]]; then
@@ -520,7 +812,7 @@ download_album() {
     fi
 
     # Extract individual track URLs
-    local temp_urls="/tmp/youmad_track_urls_$$.txt"
+    local temp_urls="/tmp/youmad_track_urls_$.txt"
 
     # Record start time for duration calculation
     local start_time=$(date +%s)
@@ -556,13 +848,29 @@ download_album() {
         fi
 
         # Prepare yt-dlp arguments with temporary filename
-        local track_args=(
-            --extract-audio --audio-format "$FORMAT" --audio-quality 0
-            --embed-metadata --add-metadata --embed-thumbnail
+        local track_args=()
+
+        if [[ "$PRESERVE_FORMAT" == true ]]; then
+            # Preserve original format - no re-encoding, no thumbnail embedding
+            track_args+=(
+                --embed-metadata --add-metadata
+                --format "bestaudio"
+                --no-embed-thumbnail
+                -o "${artist_clean}/%(album,Unknown Album|sanitize)s/temp_%(title|sanitize)s.%(ext)s"
+            )
+        else
+            # Convert to specified format
+            track_args+=(
+                --extract-audio --audio-format "$FORMAT" --audio-quality 0
+                --embed-metadata --add-metadata --embed-thumbnail
+                -o "${artist_clean}/%(album,Unknown Album|sanitize)s/temp_%(title|sanitize)s.%(ext)s"
+            )
+        fi
+
+        track_args+=(
             --no-mtime --limit-rate "$LIMIT_RATE"
             --sleep-interval 3 --max-sleep-interval 8
             --retries 3 --fragment-retries 3
-            -o "${artist_clean}/%(album,Unknown Album|sanitize)s/temp_%(title|sanitize)s.%(ext)s"
         )
 
         # Add verbosity flags
@@ -647,7 +955,11 @@ process_urls() {
     # Clear error log for this run
     > "$ERROR_LOG"
 
-    log "INFO" "YouMAD? processing URLs from $URL_FILE"
+    if [[ "$PLAYLIST_MODE" == true ]]; then
+        log "INFO" "YouMAD? processing URLs from $URL_FILE (playlist mode)"
+    else
+        log "INFO" "YouMAD? processing URLs from $URL_FILE"
+    fi
 
     # Count total valid URLs first
     local total_urls=0
@@ -684,7 +996,7 @@ process_urls() {
         artist="$(echo "$artist" | xargs)"
         release_type="$(echo "$release_type" | xargs)"
 
-        # Map release type abbreviation to Plex format
+        # Map release type abbreviation to Plex format (ignored in playlist mode)
         case "$release_type" in
             live) plex_release_type="album;live" ;;
             comp) plex_release_type="album;compilation" ;;
@@ -709,12 +1021,21 @@ process_urls() {
             artist="Unknown Artist"
         fi
 
-        # Call download function with release type
-        if download_album "$url" "$artist" "$line_num" "$plex_release_type"; then
-            processed=$((processed + 1))
+        # Call appropriate download function based on mode
+        if [[ "$PLAYLIST_MODE" == true ]]; then
+            if download_playlist "$url" "$artist" "$line_num"; then
+                processed=$((processed + 1))
+            else
+                echo "Failed: $line" >> "$ERROR_LOG"
+                failed=$((failed + 1))
+            fi
         else
-            echo "Failed: $line" >> "$ERROR_LOG"
-            failed=$((failed + 1))
+            if download_album "$url" "$artist" "$line_num" "$plex_release_type"; then
+                processed=$((processed + 1))
+            else
+                echo "Failed: $line" >> "$ERROR_LOG"
+                failed=$((failed + 1))
+            fi
         fi
 
         # Add delay between downloads to be respectful (but not in dry-run)
@@ -726,15 +1047,27 @@ process_urls() {
 
     # Final summary
     if [[ "$DRY_RUN" == true ]]; then
-        log "INFO" "YouMAD? dry run complete: Analyzed $processed URL(s) out of $total_urls total"
+        if [[ "$PLAYLIST_MODE" == true ]]; then
+            log "INFO" "YouMAD? dry run complete (playlist mode): Analyzed $processed URL(s) out of $total_urls total"
+        else
+            log "INFO" "YouMAD? dry run complete: Analyzed $processed URL(s) out of $total_urls total"
+        fi
         if [[ $failed -gt 0 ]]; then
             log "WARN" "YouMAD? failed to analyze $failed URL(s)"
         fi
     else
         if [[ $failed -eq 0 ]]; then
-            log "INFO" "YouMAD? all downloads completed successfully. Processed $processed URLs."
+            if [[ "$PLAYLIST_MODE" == true ]]; then
+                log "INFO" "YouMAD? all playlist downloads completed successfully. Processed $processed URLs."
+            else
+                log "INFO" "YouMAD? all downloads completed successfully. Processed $processed URLs."
+            fi
         else
-            log "WARN" "YouMAD? completed with some failures. Processed: $processed, Failed: $failed"
+            if [[ "$PLAYLIST_MODE" == true ]]; then
+                log "WARN" "YouMAD? completed with some failures (playlist mode). Processed: $processed, Failed: $failed"
+            else
+                log "WARN" "YouMAD? completed with some failures. Processed: $processed, Failed: $failed"
+            fi
             log "WARN" "YouMAD? check $ERROR_LOG for failed downloads."
         fi
     fi
@@ -742,7 +1075,11 @@ process_urls() {
 
 # Main execution
 main() {
-    log "INFO" "Starting YouMAD? v1.0.1"
+    if [[ "$PLAYLIST_MODE" == true ]]; then
+        log "INFO" "Starting YouMAD? v1.0.1 (playlist mode)"
+    else
+        log "INFO" "Starting YouMAD? v1.0.1"
+    fi
 
     parse_arguments "$@"
     validate_or_create_config
@@ -754,7 +1091,11 @@ main() {
     if [[ "$DRY_RUN" != true && -s "$URL_FILE" ]]; then
         if [[ ! -s "$ERROR_LOG" ]]; then
             > "$URL_FILE"
-            log "INFO" "YouMAD? all downloads processed successfully. $URL_FILE has been cleared."
+            if [[ "$PLAYLIST_MODE" == true ]]; then
+                log "INFO" "YouMAD? all playlist downloads processed successfully. $URL_FILE has been cleared."
+            else
+                log "INFO" "YouMAD? all downloads processed successfully. $URL_FILE has been cleared."
+            fi
         else
             log "WARN" "YouMAD? some downloads failed. Review $ERROR_LOG. $URL_FILE has NOT been cleared."
             echo "Failed downloads:"
