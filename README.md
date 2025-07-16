@@ -77,6 +77,9 @@ Format: `URL;Artist Name;Release Type`
 
 This one is optional, Leave it out for the default (album). End with just the `;` for an empty `RELEASETYPE` tag.
 
+**Only the URL** (because life's short):   
+If you enter just the URL, and nothing more, the Album Artist will be set to `Unknown Artist`. Are you really that lazy?
+
 ### Step 2: Run The Thing
 ```bash
 ./youmad.sh
