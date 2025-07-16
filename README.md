@@ -1,6 +1,6 @@
 # [YouMAD?](https://www.youmad.org)
 
-![Version](https://img.shields.io/badge/version-1.0.1-blue) ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-green) ![License](https://img.shields.io/badge/license-BSD--3--Clause-orange)
+![Version](https://img.shields.io/badge/version-1.1.0-blue) ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-green) ![License](https://img.shields.io/badge/license-BSD--3--Clause-orange)
 
 **Your Music Album Downloader**
 
@@ -111,13 +111,37 @@ Because unlike some people, we believe in organization.
 ./youmad.sh --verbose       # See ALL the technical gibberish
 ./youmad.sh --config        # Change your mind about settings
 ./youmad.sh --override      # Download everything again (wasteful)
+./youmad.sh --playlist      # Simple playlist mode (skip the fancy stuff)
+./youmad.sh --preserve      # Keep original format, ignores format in the config-file (audiophile mode)
 ```
+
+### Advanced Options
+
+**Playlist Mode (`--playlist`)**
+- Downloads playlists directly without individual track processing
+- Simple folder structure: `Artist/Playlist-name/Track.ext`
+- Preserves original track names from YouTube
+- No metadata processing or track renumbering
+- Perfect for when you just want the music, not the perfectionism
+
+**Preserve Format (`--preserve`)**
+- Keeps original audio format from YouTube (usually WebM)
+- No re-encoding = maximum quality preservation
+- Still organizes files and adds metadata
+- Great for audiophiles who want zero quality loss
+- Files might be in various formats (WebM, M4A, etc.)
+
+**Pro Tips:**
+- Use `--playlist --preserve` together for maximum speed and quality
+- Use `--preserve --override` to re-download in original format
+- Combine with `--verbose` to see what's actually happening
 
 ## What You Get
 
 ✅ **High-quality audio** - Not potato quality like some tools  
 ✅ **Proper metadata** - Album art, track numbers, cleaned up and Plex-ready  
 ✅ **Organized files** - Sorted like a normal human being would  
+✅ **Format flexibility** - Convert to your preferred format or keep originals
 ✅ **No duplicates** - Because we're not savages  
 ✅ **Clean filenames** - No weird Unicode disasters  
 ✅ **Cross-platform** - Works on your Linux, Mac, or Windows-with-WSL setup  
@@ -137,6 +161,12 @@ A: Because that's the one question that pops up when adding media to Plex. And, 
 
 **Q: Can it download video?**  
 A: No. It's a MUSIC downloader. Reading is fundamental.
+
+**Q: What's the difference between normal mode and playlist mode?**  
+A: Normal mode processes each track individually with proper metadata. Playlist mode just downloads the whole thing as-is. Faster, but less fancy.
+
+**Q: Should I use preserve mode?**  
+A: If you want maximum quality and don't care about file formats, yes. If you want everything in MP3 or M4A, no.
 
 **Q: Why doesn't it work?**  
 A: Did you install the dependencies? Did you read the instructions? Try that first.
