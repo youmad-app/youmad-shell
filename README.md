@@ -204,3 +204,252 @@ BSD-3-Clause. Use it, abuse it, don't blame us when things go sideways.
 ---
 
 *P.S. - Star this repo if it saved you from subscription hell. We're needy like that.*
+
+---
+
+# Appendix: See it in Action
+
+## Normal Operation
+This is the default mode. 
+
+YouMAD? will download whatever is in your `urls.txt`, convert the files to the format of your choice, clean up metadata and folders/names:
+
+**Run the command:**
+
+```
+$ ./youmad.sh
+[2025-07-16 15:38:27] [INFO] Starting YouMAD?
+[2025-07-16 15:38:27] [INFO] YouMAD? configuration loaded: m4a, 4M, chromium
+[2025-07-16 15:38:27] [INFO] YouMAD? dependencies found: yt-dlp, ffmpeg, exiftool, jq
+[2025-07-16 15:38:27] [INFO] YouMAD? processing URLs from ./urls.txt
+[2025-07-16 15:38:27] [INFO] YouMAD? found 1 valid URLs
+
+[1/1] Aunt Mary - Album - Janus
+Extracting tracks from playlist... found 9 tracks
+  ✓ Track 1/9 downloaded
+  ✓ Track 2/9 downloaded
+  ...
+  ✓ Track 7/9 downloaded
+  ✓ Track 8/9 downloaded
+  ✓ Track 9/9 downloaded
+  ✅ Album download completed successfully in 3 minutes and 29 seconds
+  📝 Metadata updated
+[2025-07-16 15:42:11] [INFO] YouMAD? all downloads completed successfully. Processed 1 URLs.
+[2025-07-16 15:42:11] [INFO] YouMAD? all downloads processed successfully. ./urls.txt has been cleared.
+[2025-07-16 15:42:11] [INFO] YouMAD? session complete. Check /home/hask01/youmad/activity.log for full details.
+```
+
+**File output:**
+
+```
+$ tree Aunt_Mary/
+Aunt_Mary/
+└── Janus
+    ├── 01 - Path Of Your Dream.m4a
+    ├── 02 - Mr. Kaye.m4a
+    ...
+    ├── 07 - All We've Got To Do Is Dream.m4a
+    ├── 08 - Candles Of Heaven.m4a
+    └── 09 - What A Lovely Day.m4a
+```
+
+**Metadata:**
+
+```
+$ mediainfo "Aunt_Mary/Janus/01 - Path Of Your Dream.m4a"
+General
+Complete name                            : Aunt_Mary/Janus/01 - Path Of Your Dream.m4a
+Format                                   : MPEG-4
+Format profile                           : Apple audio with iTunes info
+Codec ID                                 : M4A  (M4A /isom/iso2)
+File size                                : 13.4 MiB
+Duration                                 : 4 min 7 s
+Overall bit rate mode                    : Constant
+Overall bit rate                         : 453 kb/s
+Album                                    : Janus
+Album/Performer                          : Aunt Mary
+Track name                               : Path Of Your Dream
+Track name/Position                      : 1
+Performer                                : Aunt Mary
+Recorded date                            : 20180720
+Writing application                      : Lavf60.16.100
+Cover                                    : Yes
+trk                                      : 1
+
+Audio
+ID                                       : 1
+Format                                   : AAC LC
+Format/Info                              : Advanced Audio Codec Low Complexity
+Codec ID                                 : mp4a-40-2
+Duration                                 : 4 min 7 s
+Source duration                          : 4 min 7 s
+Source_Duration_LastFrame                : -1 ms
+Bit rate mode                            : Constant
+Bit rate                                 : 419 kb/s
+Channel(s)                               : 2 channels
+Channel layout                           : L R
+Sampling rate                            : 48.0 kHz
+Frame rate                               : 46.875 FPS (1024 SPF)
+Compression mode                         : Lossy
+Stream size                              : 12.4 MiB (93%)
+Source stream size                       : 12.4 MiB (93%)
+Language                                 : English
+Default                                  : Yes
+Alternate group                          : 1
+```
+
+## Preserve Mode
+
+If you want the original files, **without re-encoding**, and don't care about a consistent format, use `--preserve`  
+This will still give you formatted files/folders. Original metadata is left intact, "Album Artist" and "RELEASETYPE" may be added, depending on the format.
+
+**Run the command:**
+
+```
+$ ./youmad.sh --preserve
+[2025-07-16 15:20:51] [INFO] Starting YouMAD?
+[2025-07-16 15:20:51] [INFO] YouMAD? preserve format mode enabled - no re-encoding.
+[2025-07-16 15:20:51] [INFO] YouMAD? configuration loaded: m4a, 4M, chromium
+[2025-07-16 15:20:51] [INFO] YouMAD? dependencies found: yt-dlp, ffmpeg, exiftool, jq
+[2025-07-16 15:20:51] [INFO] YouMAD? processing URLs from ./urls.txt
+[2025-07-16 15:20:51] [INFO] YouMAD? found 1 valid URLs
+
+[1/1] Aunt Mary - Album - Janus
+Extracting tracks from playlist... found 9 tracks
+  ✓ Track 1/9 downloaded
+  ✓ Track 2/9 downloaded
+  ✓ Track 3/9 downloaded
+  ...
+  ✓ Track 9/9 downloaded
+  ✅ Album download completed successfully in 2 minutes and 11 seconds
+  📝 Metadata updated
+[2025-07-16 15:23:07] [INFO] YouMAD? all downloads completed successfully. Processed 1 URLs.
+[2025-07-16 15:23:07] [INFO] YouMAD? all downloads processed successfully. ./urls.txt has been cleared.
+[2025-07-16 15:23:07] [INFO] YouMAD? session complete. Check /home/hask01/youmad/activity.log for full details.
+```
+
+**File output:**
+
+```
+$ tree Aunt_Mary
+Aunt_Mary/
+└── Janus
+    ├── 01 - Path Of Your Dream.webm
+    ├── 02 - Mr. Kaye.webm
+    ├── 03 - Nocturnal Voice.webm
+    ...
+    └── 09 - What A Lovely Day.webm
+```
+
+**Metadata:**
+
+```
+$ mediainfo "Aunt_Mary/Janus/01 - Path Of Your Dream.webm"
+General
+Complete name                            : Aunt_Mary/Janus/01 - Path Of Your Dream.webm
+Format                                   : WebM
+Format version                           : Version 4
+File size                                : 4.00 MiB
+Duration                                 : 4 min 7 s
+Overall bit rate                         : 136 kb/s
+Track name                               : Path Of Your Dream
+Description                              : Provided to YouTube by Universal Music Group /  / Path Of Your Dream · Aunt Mary /  / Janus /  / ℗ 1990 PolyGram A/S, Norway /  / Released on: 1973-01-01 /  / Composer Lyricist: Svein Gundersen / Composer Lyricist: Bjørn Christiansen /  / Auto-generated by YouTube.
+Writing application                      : Lavf60.16.100
+Writing library                          : Lavf60.16.100
+Comment                                  : https://www.youtube.com/watch?v=c9maLcNDtYQ
+ALBUM                                    : Janus
+ARTIST                                   : Aunt Mary
+DATE                                     : 20180720
+PURL                                     : https://www.youtube.com/watch?v=c9maLcNDtYQ
+SYNOPSIS                                 : Provided to YouTube by Universal Music Group /  / Path Of Your Dream · Aunt Mary /  / Janus /  / ℗ 1990 PolyGram A/S, Norway /  / Released on: 1973-01-01 /  / Composer Lyricist: Svein Gundersen / Composer Lyricist: Bjørn Christiansen /  / Auto-generated by YouTube.
+
+Audio
+ID                                       : 1
+Format                                   : Opus
+Codec ID                                 : A_OPUS
+Duration                                 : 4 min 7 s
+Channel(s)                               : 2 channels
+Channel layout                           : L R
+Sampling rate                            : 48.0 kHz
+Bit depth                                : 32 bits
+Compression mode                         : Lossy
+Language                                 : English
+Default                                  : Yes
+Forced                                   : No
+```
+
+## Persistent + Playlist
+
+Introducing the `--playlist` option will also bypass metadata cleanup.  
+Combined with `--preserve`, your files will not be reencoded, metadata stays untouched, but there is still some effort to keep the files organized.
+
+**Run the command:**
+
+```
+$ ./youmad.sh --preserve --playlist
+[2025-07-16 15:26:43] [INFO] Starting YouMAD? v1.1.0
+[2025-07-16 15:26:43] [INFO] YouMAD? preserve format mode enabled - no re-encoding.
+[2025-07-16 15:26:43] [INFO] YouMAD? playlist mode enabled.
+[2025-07-16 15:26:43] [INFO] YouMAD? configuration loaded: m4a, 4M, chromium
+[2025-07-16 15:26:43] [INFO] YouMAD? dependencies found (playlist mode): yt-dlp, ffmpeg, jq
+[2025-07-16 15:26:43] [INFO] YouMAD? processing URLs from ./urls.txt (playlist mode)
+[2025-07-16 15:26:43] [INFO] YouMAD? found 1 valid URLs
+
+[1/1] Aunt Mary - Album - Janus (playlist mode)
+Downloading playlist... done
+  ✅ Playlist download completed successfully in 1 minutes and 38 seconds
+
+[2025-07-16 15:28:28] [INFO] YouMAD? all playlist downloads completed successfully. Processed 1 URLs.
+[2025-07-16 15:28:28] [INFO] YouMAD? all playlist downloads processed successfully. ./urls.txt has been cleared.
+[2025-07-16 15:28:28] [INFO] YouMAD? session complete. Check /home/hask01/youmad/activity.log for full details.
+```
+
+**File output:**
+
+```
+$ tree Aunt_Mary/
+Aunt_Mary/
+└── Album - Janus
+    ├── All We've Got To Do Is Dream.webm
+    ...
+    ├── Path Of Your Dream.webm
+    ├── Stumblin' Stone.webm
+    └── What A Lovely Day.webm
+```
+
+**Metadata:**
+
+```
+$ mediainfo "Aunt_Mary/Album - Janus/Path Of Your Dream.webm"
+General
+Complete name                            : Aunt_Mary/Album - Janus/Path Of Your Dream.webm
+Format                                   : WebM
+Format version                           : Version 4
+File size                                : 4.00 MiB
+Duration                                 : 4 min 7 s
+Overall bit rate                         : 136 kb/s
+Track name                               : Path Of Your Dream
+Description                              : Provided to YouTube by Universal Music Group /  / Path Of Your Dream · Aunt Mary /  / Janus /  / ℗ 1990 PolyGram A/S, Norway /  / Released on: 1973-01-01 /  / Composer Lyricist: Svein Gundersen / Composer Lyricist: Bjørn Christiansen /  / Auto-generated by YouTube.
+Writing application                      : Lavf60.16.100
+Writing library                          : Lavf60.16.100
+Comment                                  : https://www.youtube.com/watch?v=c9maLcNDtYQ
+ALBUM                                    : Janus
+ARTIST                                   : Aunt Mary
+DATE                                     : 20180720
+PURL                                     : https://www.youtube.com/watch?v=c9maLcNDtYQ
+SYNOPSIS                                 : Provided to YouTube by Universal Music Group /  / Path Of Your Dream · Aunt Mary /  / Janus /  / ℗ 1990 PolyGram A/S, Norway /  / Released on: 1973-01-01 /  / Composer Lyricist: Svein Gundersen / Composer Lyricist: Bjørn Christiansen /  / Auto-generated by YouTube.
+
+Audio
+ID                                       : 1
+Format                                   : Opus
+Codec ID                                 : A_OPUS
+Duration                                 : 4 min 7 s
+Channel(s)                               : 2 channels
+Channel layout                           : L R
+Sampling rate                            : 48.0 kHz
+Bit depth                                : 32 bits
+Compression mode                         : Lossy
+Language                                 : English
+Default                                  : Yes
+Forced                                   : No
+```
