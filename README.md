@@ -52,7 +52,7 @@ Done. See? We told you it was easy.
 ## How To Use (Rocket Science Not Required)
 
 ### Step 1: Add Your URLs
-Create a file called `urls.txt` in the same folder as the script:
+Create a file called `urls.txt` in the same folder as you run the script from:
 
 ```
 https://music.youtube.com/playlist?list=OLAK5uy_example;Artist Name
