@@ -1,5 +1,5 @@
 #!/bin/bash
-# YouMAD? - Your Music Album Downloader v1.0.1
+# YouMAD? - Your Music Album Downloader v1.1.0
 
 set -euo pipefail
 
@@ -42,7 +42,7 @@ log() {
 # Show usage information
 show_usage() {
     cat << EOF
-YouMAD? - Your Music Album Downloader v1.0.1
+YouMAD? - Your Music Album Downloader v1.1.0
 
 Usage: $0 [OPTIONS]
 
@@ -1076,9 +1076,9 @@ process_urls() {
 # Main execution
 main() {
     if [[ "$PLAYLIST_MODE" == true ]]; then
-        log "INFO" "Starting YouMAD? v1.0.1 (playlist mode)"
+        log "INFO" "Starting YouMAD? v1.1.0 (playlist mode)"
     else
-        log "INFO" "Starting YouMAD? v1.0.1"
+        log "INFO" "Starting YouMAD? v1.1.0"
     fi
 
     parse_arguments "$@"
