@@ -1,5 +1,5 @@
 #!/bin/bash
-# YouMAD? - Your Music Album Downloader v1.0.1
+# YouMAD? - Your Music Album Downloader v1.1.0-beta
 
 set -euo pipefail
 
@@ -42,7 +42,7 @@ log() {
 # Show usage information
 show_usage() {
     cat << EOF
-YouMAD? - Your Music Album Downloader v1.0.1
+YouMAD? - Your Music Album Downloader v1.1.0-beta
 
 Usage: $0 [OPTIONS]
 
@@ -306,11 +306,11 @@ download_playlist() {
     local playlist_args=()
 
     if [[ "$PRESERVE_FORMAT" == true ]]; then
-        # Preserve original format - no re-encoding but still embed thumbnails when possible
+        # Preserve original format - no re-encoding, no thumbnail embedding
         playlist_args+=(
-            --embed-metadata --add-metadata --embed-thumbnail
+            --embed-metadata --add-metadata
             --format "bestaudio"
-            --ignore-errors  # Continue on thumbnail errors
+            --no-embed-thumbnail
         )
     else
         # Convert to specified format
@@ -524,6 +524,12 @@ clean_metadata() {
                 # In preserve mode, still do basic metadata cleanup but handle multiple formats
                 local album_name=$(basename "$album_dir")
                 album_name=$(echo "$album_name" | sed 's/_/ /g')
+                
+                # Try to extract year from album name or use current year
+                local year=$(date +%Y)
+                if [[ "$album_name" =~ [[:space:]]([0-9]{4})[[:space:]]* ]]; then
+                    year="${BASH_REMATCH[1]}"
+                fi
 
                 case "$file_ext" in
                     "opus")
@@ -535,6 +541,7 @@ clean_metadata() {
                             --add "ALBUM=$album_name" \
                             --add "ALBUMARTIST=$artist" \
                             --add "TRACKNUMBER=$counter" \
+                            --add "DATE=$year" \
                             -o "$temp_opus" >/dev/null 2>&1; then
                             mv "$temp_opus" "$new_path" 2>/dev/null || rm -f "$temp_opus"
                         fi
@@ -547,9 +554,11 @@ clean_metadata() {
                             -Artist="$artist" \
                             -Album="$album_name" \
                             -AlbumArtist="$artist" \
+                            -Year="$year" \
+                            -Date="$year" \
                             "$new_path" >/dev/null 2>&1
                         ;;
-                    "mp3"|"flac"|"wav"|"webm"|"mkv"|"mka")
+                    "mp3")
                         exiftool -overwrite_original \
                             -Track="$counter" \
                             -TRCK="$counter" \
@@ -557,12 +566,61 @@ clean_metadata() {
                             -Artist="$artist" \
                             -Album="$album_name" \
                             -AlbumArtist="$artist" \
+                            -Year="$year" \
+                            -Date="$year" \
+                            -TYER="$year" \
+                            -TDRC="$year" \
+                            "$new_path" >/dev/null 2>&1
+                        ;;
+                    "flac")
+                        exiftool -overwrite_original \
+                            -Track="$counter" \
+                            -TRACKNUMBER="$counter" \
+                            -Title="$title" \
+                            -Artist="$artist" \
+                            -Album="$album_name" \
+                            -AlbumArtist="$artist" \
+                            -Year="$year" \
+                            -Date="$year" \
+                            "$new_path" >/dev/null 2>&1
+                        ;;
+                    "webm"|"mkv"|"mka")
+                        exiftool -overwrite_original \
+                            -Track="$counter" \
+                            -TRCK="$counter" \
+                            -Title="$title" \
+                            -Artist="$artist" \
+                            -Album="$album_name" \
+                            -AlbumArtist="$artist" \
+                            -Year="$year" \
+                            -Date="$year" \
+                            "$new_path" >/dev/null 2>&1
+                        ;;
+                    "wav")
+                        exiftool -overwrite_original \
+                            -Track="$counter" \
+                            -Title="$title" \
+                            -Artist="$artist" \
+                            -Album="$album_name" \
+                            -AlbumArtist="$artist" \
+                            -Year="$year" \
                             "$new_path" >/dev/null 2>&1
                         ;;
                     *)
-                        # For unsupported formats, just log
+                        # For unsupported formats, try generic approach
+                        exiftool -overwrite_original \
+                            -Track="$counter" \
+                            -TRCK="$counter" \
+                            -Title="$title" \
+                            -Artist="$artist" \
+                            -Album="$album_name" \
+                            -AlbumArtist="$artist" \
+                            -Year="$year" \
+                            -Date="$year" \
+                            "$new_path" >/dev/null 2>&1
+                        
                         if [[ "$VERBOSE" == true ]]; then
-                            log "INFO" "YouMAD? skipping metadata for unsupported format: $file_ext"
+                            log "INFO" "YouMAD? attempted generic metadata for format: $file_ext"
                         fi
                         ;;
                 esac
@@ -793,11 +851,11 @@ download_album() {
         local track_args=()
 
         if [[ "$PRESERVE_FORMAT" == true ]]; then
-            # Preserve original format - no re-encoding but still embed thumbnails when possible
+            # Preserve original format - no re-encoding, no thumbnail embedding
             track_args+=(
-                --embed-metadata --add-metadata --embed-thumbnail
+                --embed-metadata --add-metadata
                 --format "bestaudio"
-                --ignore-errors  # Continue on thumbnail errors
+                --no-embed-thumbnail
                 -o "${artist_clean}/%(album,Unknown Album|sanitize)s/temp_%(title|sanitize)s.%(ext)s"
             )
         else
@@ -1018,9 +1076,9 @@ process_urls() {
 # Main execution
 main() {
     if [[ "$PLAYLIST_MODE" == true ]]; then
-        log "INFO" "Starting YouMAD? v1.0.1 (playlist mode)"
+        log "INFO" "Starting YouMAD? v1.1.0-beta (playlist mode)"
     else
-        log "INFO" "Starting YouMAD? v1.0.1"
+        log "INFO" "Starting YouMAD? v1.1.0-beta"
     fi
 
     parse_arguments "$@"
