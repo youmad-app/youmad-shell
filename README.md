@@ -157,7 +157,8 @@ Because unlike some people, we believe in organization.
 ## FAQ (Frequently Avoided Questions)
 
 **Q: Why is it called YouMAD?**  
-A: Because that's the one question that pops up when adding media to Plex. And, it's short for "*Your Music Album Downloader*". Catchy, ey?
+A: Because that's the one question that pops up when adding media to Plex.  
+And, it's short for "*Your Music Album Downloader*". Catchy, ey?
 
 **Q: Can it download video?**  
 A: No. It's a MUSIC downloader. Reading is fundamental.
