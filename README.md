@@ -118,6 +118,8 @@ Because unlike some people, we believe in organization.
 ./youmad.sh --preserve      # Keep original format, ignores format in the config-file (audiophile mode)
 ```
 
+### ✅ [See it in Action](https://github.com/youmad-app/youmad-shell/tree/main#appendix-see-it-in-action) <- Click the link for examples
+
 ### Advanced Options
 
 **Playlist Mode (`--playlist`)**
