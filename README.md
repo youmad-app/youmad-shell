@@ -122,6 +122,7 @@ Because unlike some people, we believe in organization.
 
 **Playlist Mode (`--playlist`)**
 - Downloads playlists directly without individual track processing
+- Great for downloading your own curated playlists
 - Simple folder structure: `Artist/Playlist-name/Track.ext`
 - Preserves original track names from YouTube
 - No metadata processing or track renumbering
