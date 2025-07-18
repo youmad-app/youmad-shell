@@ -221,18 +221,18 @@ convert_webm_to_opus() {
         return 0
     fi
     
-    # Convert WebM to Opus (no re-encoding) and embed thumbnail
+    # Convert WebM to Opus (no re-encoding) and strip all metadata
     if [[ -f "$thumbnail_file" ]]; then
-        # Convert with thumbnail embedding
-        if ffmpeg -i "$webm_file" -i "$thumbnail_file" -c:a copy -c:v copy -disposition:v attached_pic "$opus_file" >/dev/null 2>&1; then
+        # Convert with thumbnail embedding, stripping metadata
+        if ffmpeg -i "$webm_file" -i "$thumbnail_file" -c:a copy -c:v copy -map_metadata -1 -disposition:v attached_pic "$opus_file" >/dev/null 2>&1; then
             rm -f "$webm_file" "$thumbnail_file"
             echo "$opus_file"
             return 0
         fi
     fi
     
-    # Fallback: convert without thumbnail
-    if ffmpeg -i "$webm_file" -c:a copy "$opus_file" >/dev/null 2>&1; then
+    # Fallback: convert without thumbnail, stripping metadata
+    if ffmpeg -i "$webm_file" -c:a copy -map_metadata -1 "$opus_file" >/dev/null 2>&1; then
         rm -f "$webm_file" "$thumbnail_file"
         echo "$opus_file"
         return 0
