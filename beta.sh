@@ -435,6 +435,8 @@ clean_metadata() {
         # Only show this log message in verbose mode
         if [[ "$VERBOSE" == true ]]; then
             log "INFO" "YouMAD? cleaning metadata and fixing track numbers in: $album_dir"
+            log "INFO" "YouMAD? DEBUG: Directory contents:"
+            ls -la "$album_dir"
         fi
 
         # Create a temporary file to store playlist order
