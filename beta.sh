@@ -264,10 +264,12 @@ clean_metadata() {
 
     # Get album name from directory
     local album_name=$(basename "$album_dir" | sed 's/_/ /g')
-    local year=$(date +%Y)
-
-    # Extract year from album name if present
+    
+    # Try to extract year from album name, otherwise use a reasonable default
+    local year="2020"  # Default year instead of current year
     if [[ "$album_name" =~ [[:space:]]([0-9]{4})[[:space:]]* ]]; then
+        year="${BASH_REMATCH[1]}"
+    elif [[ "$album_name" =~ ([0-9]{4}) ]]; then
         year="${BASH_REMATCH[1]}"
     fi
 
