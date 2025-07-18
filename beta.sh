@@ -333,6 +333,8 @@ clean_metadata() {
                     -metadata TRACKNUMBER="$counter" \
                     -metadata DATE="$year" \
                     -metadata RELEASETYPE="$release_type" \
+                    -metadata DESCRIPTION="" \
+                    -metadata SYNOPSIS="" \
                     "$temp_opus" >/dev/null 2>&1; then
                     mv "$temp_opus" "$new_path"
                     [[ "$VERBOSE" == true ]] && log "INFO" "Set Opus metadata for track $counter"
@@ -352,6 +354,9 @@ clean_metadata() {
                     -Year="$year" \
                     -Date="$year" \
                     -RELEASETYPE="$release_type" \
+                    -Description="" \
+                    -LongDescription="" \
+                    -Synopsis="" \
                     "$new_path" >/dev/null 2>&1
                 [[ "$VERBOSE" == true ]] && log "INFO" "Set M4A metadata for track $counter"
                 ;;
