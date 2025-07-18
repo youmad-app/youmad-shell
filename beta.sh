@@ -509,6 +509,10 @@ clean_metadata() {
         # Process files in playlist order
         local counter=1
         while IFS= read -r file; do
+            if [[ "$VERBOSE" == true ]]; then
+                log "INFO" "YouMAD? processing file #$counter: '$file'"
+            fi
+            
             [[ ! -f "$file" ]] && continue
 
             local filename=$(basename "$file")
