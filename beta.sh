@@ -221,20 +221,19 @@ convert_webm_to_opus() {
         return 0
     fi
     
-    # Convert WebM to Opus (no re-encoding)
-    if ffmpeg -i "$webm_file" -c:a copy "$opus_file" >/dev/null 2>&1; then
-        # Embed thumbnail if available
-        if [[ -f "$thumbnail_file" ]]; then
-            local temp_opus="/tmp/youmad_thumb_$$.opus"
-            if ffmpeg -i "$opus_file" -i "$thumbnail_file" -c:a copy -disposition:v attached_pic "$temp_opus" >/dev/null 2>&1; then
-                mv "$temp_opus" "$opus_file"
-            else
-                rm -f "$temp_opus"
-            fi
-            rm -f "$thumbnail_file"
+    # Convert WebM to Opus (no re-encoding) and embed thumbnail
+    if [[ -f "$thumbnail_file" ]]; then
+        # Convert with thumbnail embedding
+        if ffmpeg -i "$webm_file" -i "$thumbnail_file" -c:a copy -c:v copy -disposition:v attached_pic "$opus_file" >/dev/null 2>&1; then
+            rm -f "$webm_file" "$thumbnail_file"
+            echo "$opus_file"
+            return 0
         fi
-        
-        rm -f "$webm_file"
+    fi
+    
+    # Fallback: convert without thumbnail
+    if ffmpeg -i "$webm_file" -c:a copy "$opus_file" >/dev/null 2>&1; then
+        rm -f "$webm_file" "$thumbnail_file"
         echo "$opus_file"
         return 0
     fi
@@ -324,7 +323,7 @@ clean_metadata() {
         # Set metadata based on file type
         case "$file_ext" in
             "opus")
-                local temp_opus="/tmp/youmad_meta_$$.opus"
+                local temp_opus="/tmp/youmad_meta_$.opus"
                 if ffmpeg -i "$new_path" -c copy \
                     -metadata TITLE="$title" \
                     -metadata ARTIST="$artist" \
@@ -335,6 +334,9 @@ clean_metadata() {
                     -metadata RELEASETYPE="$release_type" \
                     -metadata DESCRIPTION="" \
                     -metadata SYNOPSIS="" \
+                    -metadata PURL="" \
+                    -metadata:s:v title="Album cover" \
+                    -metadata:s:v comment="Cover (front)" \
                     "$temp_opus" >/dev/null 2>&1; then
                     mv "$temp_opus" "$new_path"
                     [[ "$VERBOSE" == true ]] && log "INFO" "Set Opus metadata for track $counter"
