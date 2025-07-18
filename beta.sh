@@ -312,9 +312,6 @@ clean_metadata() {
         # Skip if this is a metadata file
         [[ "$file_ext" == "metadata" ]] && continue
 
-        # Note: WebM files are already converted to Opus during download phase
-        # We don't need to convert them here anymore
-
         # Extract title from filename (use the temp filename)
         local title
         if [[ "$filename" =~ ^temp_(.*)\.[^.]+$ ]]; then
@@ -350,33 +347,36 @@ clean_metadata() {
                     original_performer=$(ffprobe -v quiet -show_entries format_tags=performer -of default=noprint_wrappers=1:nokey=1 "$current_file" 2>/dev/null)
                 fi
                 
-                # Create Opus filename
+                # Create Opus filename and find corresponding thumbnail
                 local opus_file="${current_file%.*}.opus"
-                local thumbnail_file="${current_file%.*}.webp"
+                local thumbnail_file=""
                 
-                # Convert to Opus with metadata
-                local convert_cmd=(
-                    ffmpeg -i "$current_file"
-                )
-                
-                # Add thumbnail if it exists
-                if [[ -f "$thumbnail_file" ]]; then
-                    convert_cmd+=(-i "$thumbnail_file" -c:v copy -disposition:v attached_pic)
+                # Extract the original track title to find the matching thumbnail
+                local track_title=""
+                if [[ "$current_file" =~ ^.*/[0-9]+\ -\ (.*)\.webm$ ]]; then
+                    track_title="${BASH_REMATCH[1]}"
+                    # Look for the original temp thumbnail file
+                    local temp_thumbnail="$album_dir/temp_${track_title}.webp"
+                    if [[ -f "$temp_thumbnail" ]]; then
+                        thumbnail_file="$temp_thumbnail"
+                    fi
                 fi
                 
                 # Convert to Opus with comprehensive metadata cleaning
                 local convert_cmd=(
                     ffmpeg -i "$current_file"
+                    -c:a copy
                 )
                 
-                # Add thumbnail if it exists
-                if [[ -f "$thumbnail_file" ]]; then
-                    convert_cmd+=(-i "$thumbnail_file" -c:v copy -disposition:v attached_pic)
+                # Note: Opus format doesn't support embedded album art, so we skip thumbnails
+                if [[ -n "$thumbnail_file" && -f "$thumbnail_file" ]]; then
+                    [[ "$VERBOSE" == true ]] && log "INFO" "Found thumbnail $(basename "$thumbnail_file") but Opus format doesn't support embedded album art"
+                else
+                    [[ "$VERBOSE" == true ]] && log "INFO" "No thumbnail found for: $title"
                 fi
                 
                 # Strip ALL metadata first, then rebuild only what we want
                 convert_cmd+=(
-                    -c:a copy
                     -map_metadata -1
                     -metadata:s:a:0 TITLE="$title"
                     -metadata:s:a:0 ARTIST="$artist"
@@ -400,14 +400,20 @@ clean_metadata() {
                 convert_cmd+=("$opus_file")
                 
                 if "${convert_cmd[@]}" >/dev/null 2>&1; then
-                    rm -f "$current_file" "$thumbnail_file"
+                    rm -f "$current_file"
+                    # Clean up the thumbnail file we just used (AFTER successful conversion)
+                    if [[ -n "$thumbnail_file" && -f "$thumbnail_file" ]]; then
+                        rm -f "$thumbnail_file"
+                    fi
                     [[ "$VERBOSE" == true ]] && log "INFO" "Converted WebM to Opus for track $counter"
                 else
+                    # Don't clean up thumbnails if conversion failed, for debugging
+                    [[ "$VERBOSE" == true ]] && log "WARN" "Failed to convert WebM to Opus for: $(basename "$current_file") - keeping thumbnail for debugging"
                     log "WARN" "Failed to convert WebM to Opus for: $(basename "$current_file")"
                 fi
                 ;;
             "opus")
-                # Check for saved performer metadata from WebM conversion
+                # For existing Opus files, just update metadata
                 local metadata_file="${album_dir}/temp_$(echo "$title" | tr ' ' '_').metadata"
                 local original_performer=""
                 
@@ -440,6 +446,7 @@ clean_metadata() {
                 # Build ffmpeg command with STREAM metadata for Opus
                 local ffmpeg_cmd=(
                     ffmpeg -i "$current_file" -c copy
+                    -map_metadata -1
                     -metadata:s:a:0 TITLE="$title"
                     -metadata:s:a:0 ARTIST="$artist"
                     -metadata:s:a:0 ALBUM="$album_name"
@@ -458,13 +465,8 @@ clean_metadata() {
                     [[ "$VERBOSE" == true ]] && log "INFO" "No original performer found, using artist: $artist"
                 fi
                 
-                # Clear unwanted metadata
-                ffmpeg_cmd+=(
-                    -metadata:s:a:0 DESCRIPTION=""
-                    -metadata:s:a:0 SYNOPSIS=""
-                    -metadata:s:a:0 PURL=""
-                    "$temp_opus"
-                )
+                # Add output file
+                ffmpeg_cmd+=("$temp_opus")
                 
                 if "${ffmpeg_cmd[@]}" >/dev/null 2>&1; then
                     mv "$temp_opus" "$current_file"
@@ -488,7 +490,7 @@ clean_metadata() {
                     -Description="" \
                     -LongDescription="" \
                     -Synopsis="" \
-                    "$new_path" >/dev/null 2>&1
+                    "$current_file" >/dev/null 2>&1
                 [[ "$VERBOSE" == true ]] && log "INFO" "Set M4A metadata for track $counter"
                 ;;
             *)
@@ -502,9 +504,8 @@ clean_metadata() {
 
     rm -f "$temp_order"
     
-    # Clean up any remaining metadata and thumbnail files
+    # Clean up any remaining metadata files (but not thumbnails since they're cleaned individually)
     find "$album_dir" -name "*.metadata" -delete 2>/dev/null
-    find "$album_dir" -name "temp_*.webp" -delete 2>/dev/null
     
     [[ "$VERBOSE" == true ]] && log "INFO" "Metadata processing completed for $((counter-1)) files"
 }
