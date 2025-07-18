@@ -368,9 +368,15 @@ clean_metadata() {
                     -c:a copy
                 )
                 
-                # Note: Opus format doesn't support embedded album art, so we skip thumbnails
+                # Note: Opus format doesn't support embedded album art, but we can save it as cover.jpg
                 if [[ -n "$thumbnail_file" && -f "$thumbnail_file" ]]; then
-                    [[ "$VERBOSE" == true ]] && log "INFO" "Found thumbnail $(basename "$thumbnail_file") but Opus format doesn't support embedded album art"
+                    local cover_file="$album_dir/cover.jpg"
+                    # Convert WebP to JPEG and save as cover.jpg
+                    if ffmpeg -i "$thumbnail_file" "$cover_file" -y >/dev/null 2>&1; then
+                        [[ "$VERBOSE" == true ]] && log "INFO" "Saved album art as: $(basename "$cover_file")"
+                    else
+                        [[ "$VERBOSE" == true ]] && log "WARN" "Failed to convert thumbnail to cover.jpg"
+                    fi
                 else
                     [[ "$VERBOSE" == true ]] && log "INFO" "No thumbnail found for: $title"
                 fi
@@ -401,7 +407,7 @@ clean_metadata() {
                 
                 if "${convert_cmd[@]}" >/dev/null 2>&1; then
                     rm -f "$current_file"
-                    # Clean up the thumbnail file we just used (AFTER successful conversion)
+                    # Clean up the thumbnail file after we've processed it (but keep cover.jpg)
                     if [[ -n "$thumbnail_file" && -f "$thumbnail_file" ]]; then
                         rm -f "$thumbnail_file"
                     fi
