@@ -680,13 +680,17 @@ clean_metadata() {
                 local thumbnail_file="$album_dir/temp_${original_title}.webp"
                 if [[ -f "$thumbnail_file" ]]; then
                     local cover_file="$album_dir/cover.jpg"
-                    # Convert WebP to square JPEG by cropping to center square (only if cover doesn't exist)
-                    if [[ ! -f "$cover_file" ]] && ffmpeg -i "$thumbnail_file" -vf "crop=min(iw\,ih):min(iw\,ih)" -q:v 2 "$cover_file" -y >/dev/null 2>&1; then
+                    [[ "$VERBOSE" == true ]] && log "INFO" "Found thumbnail file: $(basename "$thumbnail_file")"
+                    
+                    # Convert WebP to square JPEG by cropping to center square
+                    if ffmpeg -i "$thumbnail_file" -vf "crop=min(iw\,ih):min(iw\,ih)" -q:v 2 "$cover_file" -y >/dev/null 2>&1; then
                         [[ "$VERBOSE" == true ]] && log "INFO" "Saved square album art as: $(basename "$cover_file")"
+                        # Clean up the thumbnail file after successful conversion
+                        rm -f "$thumbnail_file"
+                        [[ "$VERBOSE" == true ]] && log "INFO" "Cleaned up thumbnail: $(basename "$thumbnail_file")"
+                    else
+                        [[ "$VERBOSE" == true ]] && log "WARN" "Failed to convert thumbnail to cover.jpg, keeping original thumbnail"
                     fi
-                    # Always clean up the thumbnail file
-                    rm -f "$thumbnail_file"
-                    [[ "$VERBOSE" == true ]] && log "INFO" "Cleaned up thumbnail: $(basename "$thumbnail_file")"
                 else
                     [[ "$VERBOSE" == true ]] && log "INFO" "No thumbnail found for: $original_title (looked for: temp_${original_title}.webp)"
                 fi
@@ -862,18 +866,32 @@ download_album() {
             dl_args+=(--download-archive "$DOWNLOAD_ARCHIVE")
         fi
 
+        local download_success=false
         if [[ "$VERBOSE" == true ]]; then
-            if ! yt-dlp "${dl_args[@]}" "$track_url" 2>&1 | tee -a "$ACTIVITY_LOG"; then
+            if yt-dlp "${dl_args[@]}" "$track_url" 2>&1 | tee -a "$ACTIVITY_LOG"; then
+                download_success=true
+            fi
+        else
+            if yt-dlp "${dl_args[@]}" "$track_url" >> "$ACTIVITY_LOG" 2>&1; then
+                download_success=true
+            fi
+        fi
+
+        # Check if files were actually downloaded, even if yt-dlp reported errors
+        if [[ "$download_success" != true ]]; then
+            # Look for downloaded files for this track
+            local track_files
+            track_files=$(find "${artist_clean}" -name "temp_*" -type f \( -name "*.mp4" -o -name "*.webm" -o -name "*.opus" -o -name "*.m4a" \) 2>/dev/null | wc -l)
+            if [[ "$track_files" -gt 0 ]]; then
+                download_success=true
+                [[ "$VERBOSE" == true ]] && log "INFO" "Files found despite yt-dlp errors, treating as successful"
+                [[ "$VERBOSE" != true ]] && printf "  ✓ Track %d/%d (with warnings)\n" "$track_num" "$track_count"
+            else
                 log "WARN" "Failed to download track $track_num"
                 ((failed_tracks++))
             fi
         else
-            if ! yt-dlp "${dl_args[@]}" "$track_url" >> "$ACTIVITY_LOG" 2>&1; then
-                log "WARN" "Failed to download track $track_num"
-                ((failed_tracks++))
-            else
-                printf "  ✓ Track %d/%d\n" "$track_num" "$track_count"
-            fi
+            [[ "$VERBOSE" != true ]] && printf "  ✓ Track %d/%d\n" "$track_num" "$track_count"
         fi
 
         ((track_num++))
