@@ -84,7 +84,7 @@ Leave type blank for default (album).
 ./youmad.sh
 ```
 
-**First time?** It'll ask you some questions. Answer them. It's not a quiz.
+**First time?** You'll be guided through downloading dependencies. It'll also ask you some questions. Answer them. It's not a quiz.
 
 ```bash
 ./youmad.sh
