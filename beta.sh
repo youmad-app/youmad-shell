@@ -303,8 +303,9 @@ download_playlist() {
     # Download arguments for playlist
     local dl_args=(
         --embed-metadata --add-metadata
-        --format "bestaudio"
-        --no-embed-thumbnail --write-thumbnail
+        --format "bestaudio/best"
+        --no-write-thumbnail
+        --no-write-playlist-metafiles
         --no-mtime --limit-rate "$LIMIT_RATE"
         --sleep-interval 3 --max-sleep-interval 8
         --retries 3 --fragment-retries 3
@@ -322,18 +323,34 @@ download_playlist() {
     fi
 
     # Download playlist
+    local download_success=false
     if [[ "$VERBOSE" == true ]]; then
-        if ! yt-dlp "${dl_args[@]}" "$url" 2>&1 | tee -a "$ACTIVITY_LOG"; then
-            log "ERROR" "Failed to download playlist: $url"
-            return 1
+        if yt-dlp "${dl_args[@]}" "$url" 2>&1 | tee -a "$ACTIVITY_LOG"; then
+            download_success=true
         fi
     else
-        if ! yt-dlp "${dl_args[@]}" "$url" >> "$ACTIVITY_LOG" 2>&1; then
-            log "ERROR" "Failed to download playlist: $url"
-            return 1
-        else
+        if yt-dlp "${dl_args[@]}" "$url" >> "$ACTIVITY_LOG" 2>&1; then
+            download_success=true
             printf "done\n"
         fi
+    fi
+
+    # Check if we actually got files, even if yt-dlp reported errors
+    if [[ "$download_success" != true ]]; then
+        # Look for any downloaded files to see if it actually succeeded despite errors
+        local downloaded_files
+        downloaded_files=$(find . -maxdepth 2 -name "*.mp4" -o -name "*.webm" -o -name "*.opus" -o -name "*.m4a" 2>/dev/null | wc -l)
+        if [[ "$downloaded_files" -gt 0 ]]; then
+            download_success=true
+            printf "done (with warnings)\n"
+        else
+            printf "failed\n"
+        fi
+    fi
+
+    if [[ "$download_success" != true ]]; then
+        log "ERROR" "Failed to download playlist: $url"
+        return 1
     fi
 
     # Calculate duration
@@ -667,7 +684,7 @@ clean_metadata() {
                     if [[ ! -f "$cover_file" ]] && ffmpeg -i "$thumbnail_file" -vf "crop=min(iw\,ih):min(iw\,ih)" -q:v 2 "$cover_file" -y >/dev/null 2>&1; then
                         [[ "$VERBOSE" == true ]] && log "INFO" "Saved square album art as: $(basename "$cover_file")"
                     fi
-                    # Clean up the thumbnail file
+                    # Always clean up the thumbnail file
                     rm -f "$thumbnail_file"
                     [[ "$VERBOSE" == true ]] && log "INFO" "Cleaned up thumbnail: $(basename "$thumbnail_file")"
                 else
@@ -827,7 +844,7 @@ download_album() {
 
         local dl_args=(
             --embed-metadata --add-metadata
-            --format "bestaudio"
+            --format "bestaudio/best"
             --no-embed-thumbnail --write-thumbnail
             --no-mtime --limit-rate "$LIMIT_RATE"
             --sleep-interval 3 --max-sleep-interval 8
