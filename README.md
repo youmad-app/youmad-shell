@@ -134,6 +134,7 @@ Because unlike some people, we believe in organization.
 **Playlist Mode (add `;playlist` to URL):**
 - Downloads entire playlist directly
 - Preserves original track names from YouTube
+- Playlists can be downloaded over and over, only new additions are grabbed
 - Simple folder structure, no track renumbering
 - Great for your own curated playlists
 - File output: `Track Name.opus`
