@@ -455,14 +455,7 @@ clean_metadata() {
         mv "$temp_sorted" "$temp_order"
     fi
 
-    # Debug: show what files we found
-    if [[ "$VERBOSE" == true ]]; then
-        local file_count=$(wc -l < "$temp_order" 2>/dev/null || echo "0")
-        log "INFO" "Found $file_count audio files to process:"
-        while IFS= read -r file; do
-            [[ -f "$file" ]] && log "INFO" "  - $(basename "$file")"
-        done < "$temp_order"
-    fi
+
 
     # Process files in order
     local counter=1
