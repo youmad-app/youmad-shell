@@ -127,6 +127,7 @@ Because unlike some people, we believe in organization.
 
 **Album Mode (default):**
 - Downloads tracks individually with proper numbering and metadata
+- Fetches thumnail, converts it from 16:9 format to square, saves it as cover.jpg in the album folder
 - Converts WebM to Opus, keeps M4A as-is
 - Perfect for albums that need to be organized
 - File output: `01 - Track Name.opus`
