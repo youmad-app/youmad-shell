@@ -1,5 +1,5 @@
 #!/bin/bash
-# YouMAD? - Your Music Album Downloader v2.0.3
+# YouMAD? - Your Music Album Downloader v2.1.0
 
 set -euo pipefail
 
@@ -40,7 +40,7 @@ log() {
 # Show usage
 show_usage() {
     cat << EOF
-YouMAD? - Your Music Album Downloader v2.0.3
+YouMAD? - Your Music Album Downloader v2.1.0
 
 Usage: $0 [OPTIONS]
 
@@ -57,6 +57,15 @@ REQUIREMENTS:
 
 RELEASE TYPES:
     - album (default), ep, single, live, comp, soundtrack, demo, remix
+    - playlist (simple download with format cleanup, no metadata processing)
+
+PLAYLIST MODE:
+    - Downloads entire playlist with original metadata preserved
+    - Simple folder structure: Playlist/Track.ext
+    - Converts WebM to Opus (container only, no re-encoding)
+    - Renames MP4 to M4A
+    - Preserves .opus and .m4a files as-is
+    - Perfect for incremental playlist syncing
 
 The script downloads original files from YouTube Music and converts
 WebM files to Opus without re-encoding. MP4 files are renamed to M4A
@@ -144,11 +153,12 @@ initialize_files() {
         cat > "$URL_FILE" <<EOF
 # YouMAD? - URLs File
 # Format: URL;Artist Name;ReleaseType
-# Release types: album (default), ep, single, live, comp, soundtrack, demo, remix
+# Release types: album (default), ep, single, live, comp, soundtrack, demo, remix, playlist
 #
 # Examples:
 # https://music.youtube.com/playlist?list=OLAK5uy_example;Artist Name
 # https://music.youtube.com/playlist?list=OLAK5uy_example;Artist Name;ep
+# https://music.youtube.com/playlist?list=PLrAl6cWylHjwKpVROBfZyY5jzBCMjFhgs;Various;playlist
 
 EOF
         log "INFO" "Created $URL_FILE with examples. Add your URLs and run again."
@@ -212,7 +222,165 @@ get_album_info() {
     fi
 }
 
-# Clean and set metadata
+# Simple playlist file cleanup - converts WebM to Opus and MP4 to M4A, preserves all metadata
+clean_playlist_files() {
+    local playlist_dir="$1"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        [[ "$VERBOSE" == true ]] && log "INFO" "[DRY RUN] Would clean playlist files in $playlist_dir"
+        return 0
+    fi
+
+    if [[ ! -d "$playlist_dir" ]]; then
+        log "WARN" "Playlist directory not found: $playlist_dir"
+        return 1
+    fi
+
+    [[ "$VERBOSE" == true ]] && log "INFO" "Cleaning playlist files in: $playlist_dir"
+
+    # Process WebM files - convert container to Opus without re-encoding
+    while IFS= read -r -d '' webm_file; do
+        [[ ! -f "$webm_file" ]] && continue
+        
+        local opus_file="${webm_file%.*}.opus"
+        [[ "$VERBOSE" == true ]] && log "INFO" "Converting WebM to Opus: $(basename "$webm_file")"
+        
+        if ffmpeg -i "$webm_file" -c copy "$opus_file" >/dev/null 2>&1; then
+            rm -f "$webm_file"
+            [[ "$VERBOSE" == true ]] && log "INFO" "Converted: $(basename "$webm_file") -> $(basename "$opus_file")"
+        else
+            log "WARN" "Failed to convert WebM to Opus: $(basename "$webm_file")"
+        fi
+    done < <(find "$playlist_dir" -name "*.webm" -type f -print0 2>/dev/null)
+
+    # Process MP4 files - rename to M4A
+    while IFS= read -r -d '' mp4_file; do
+        [[ ! -f "$mp4_file" ]] && continue
+        
+        local m4a_file="${mp4_file%.*}.m4a"
+        [[ "$VERBOSE" == true ]] && log "INFO" "Renaming MP4 to M4A: $(basename "$mp4_file")"
+        
+        if mv "$mp4_file" "$m4a_file" 2>/dev/null; then
+            [[ "$VERBOSE" == true ]] && log "INFO" "Renamed: $(basename "$mp4_file") -> $(basename "$m4a_file")"
+        else
+            log "WARN" "Failed to rename MP4 to M4A: $(basename "$mp4_file")"
+        fi
+    done < <(find "$playlist_dir" -name "*.mp4" -type f -print0 2>/dev/null)
+
+    [[ "$VERBOSE" == true ]] && log "INFO" "Playlist file cleanup completed"
+}
+
+# Download playlist with simple cleanup
+download_playlist() {
+    local url="$1"
+    local playlist_name="$2"
+    local line_num="$3"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        local playlist_title
+        playlist_title=$(get_album_info "$url")
+        if [[ "$VERBOSE" == true ]]; then
+            log "INFO" "Would download playlist '$playlist_title'"
+        else
+            printf "  Would download playlist: %s\n" "$playlist_title"
+        fi
+        return 0
+    fi
+
+    # Get playlist info
+    local playlist_title
+    playlist_title=$(get_album_info "$url")
+
+    if [[ "$VERBOSE" == true ]]; then
+        log "INFO" "Starting playlist download: $url"
+    else
+        printf "\n[%s] %s (playlist mode)\n" "$line_num" "${playlist_title:-Playlist}"
+        printf "Downloading playlist... "
+    fi
+
+    local start_time=$(date +%s)
+
+    # Download arguments for playlist
+    local dl_args=(
+        --embed-metadata --add-metadata
+        --format "bestaudio"
+        --no-embed-thumbnail --write-thumbnail
+        --no-mtime --limit-rate "$LIMIT_RATE"
+        --sleep-interval 3 --max-sleep-interval 8
+        --retries 3 --fragment-retries 3
+        -o "%(playlist,Unknown Playlist|sanitize)s/%(title|sanitize)s.%(ext)s"
+    )
+
+    if [[ "$VERBOSE" == true ]]; then
+        dl_args+=(--progress)
+    else
+        dl_args+=(--no-progress --quiet)
+    fi
+
+    if [[ "$OVERRIDE" != true ]]; then
+        dl_args+=(--download-archive "$DOWNLOAD_ARCHIVE")
+    fi
+
+    # Download playlist
+    if [[ "$VERBOSE" == true ]]; then
+        if ! yt-dlp "${dl_args[@]}" "$url" 2>&1 | tee -a "$ACTIVITY_LOG"; then
+            log "ERROR" "Failed to download playlist: $url"
+            return 1
+        fi
+    else
+        if ! yt-dlp "${dl_args[@]}" "$url" >> "$ACTIVITY_LOG" 2>&1; then
+            log "ERROR" "Failed to download playlist: $url"
+            return 1
+        else
+            printf "done\n"
+        fi
+    fi
+
+    # Calculate duration
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    local minutes=$((duration / 60))
+    local seconds=$((duration % 60))
+
+    if [[ "$VERBOSE" == true ]]; then
+        log "INFO" "Playlist download completed successfully"
+    else
+        printf "  ✅ Completed in %dm %ds\n" "$minutes" "$seconds"
+    fi
+
+    # Find and clean playlist files
+    local playlist_dir
+    if [[ -n "$playlist_title" && "$playlist_title" != "Unknown Album" ]]; then
+        # Use the actual playlist title for directory name
+        playlist_dir=$(echo "$playlist_title" | tr -d '/<>:"|?*' | tr ' ' '_')
+        # Find directory that matches (yt-dlp sanitizes names)
+        playlist_dir=$(find . -maxdepth 1 -type d -name "*$(echo "$playlist_title" | head -c 20)*" | head -n1)
+    fi
+    
+    # Fallback: find the most recently created directory
+    if [[ ! -d "$playlist_dir" ]]; then
+        if stat -c "%Y" . >/dev/null 2>&1; then
+            # GNU stat
+            playlist_dir=$(find . -maxdepth 1 -type d ! -name "." -exec stat -c "%Y %n" {} \; | \
+                sort -nr | head -n1 | cut -d' ' -f2-)
+        else
+            # BSD stat
+            playlist_dir=$(find . -maxdepth 1 -type d ! -name "." -exec stat -f "%m %N" {} \; | \
+                sort -nr | head -n1 | awk '{$1=""; sub(/^ /, ""); print}')
+        fi
+    fi
+
+    if [[ -n "$playlist_dir" && -d "$playlist_dir" ]]; then
+        clean_playlist_files "$playlist_dir"
+        [[ "$VERBOSE" != true ]] && printf "  📝 Files cleaned\n"
+    else
+        log "WARN" "Could not find playlist directory for cleanup"
+    fi
+
+    return 0
+}
+
+# Clean and set metadata (existing function for albums)
 clean_metadata() {
     local artist="$1"
     local album_dir="$2"
@@ -242,30 +410,32 @@ clean_metadata() {
     fi
 
     # Sort files by creation time to preserve playlist order (audio files only, exclude metadata files)
-    # FIXED: Now includes mp4 files and improved file pattern matching
     local temp_order="/tmp/youmad_order_$.txt"
 
-    # Find all audio files (including mp4) and sort by creation time
-    find "$album_dir" -name "temp_*.*" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" -o -name "*.mp3" -o -name "*.aac" -o -name "*.flac" \) ! -name "*.metadata" -print0 | \
-        while IFS= read -r -d '' file; do
-            if stat -c "%Y %n" "$file" 2>/dev/null; then
-                echo "$(stat -c "%Y" "$file" 2>/dev/null) $file"
-            elif stat -f "%m %N" "$file" 2>/dev/null; then
-                echo "$(stat -f "%m" "$file" 2>/dev/null) $file"
-            fi
-        done | sort -n | cut -d' ' -f2- > "$temp_order"
+    # Find all audio files (including mp4) and sort by creation time - FIXED to avoid duplicates
+    find "$album_dir" -name "temp_*.*" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" -o -name "*.mp3" -o -name "*.aac" -o -name "*.flac" \) ! -name "*.metadata" > "$temp_order"
 
     # Fallback: if no temp_ files found, look for any audio files
     if [[ ! -s "$temp_order" ]]; then
         [[ "$VERBOSE" == true ]] && log "INFO" "No temp_ files found, searching for any audio files"
-        find "$album_dir" -name "*.*" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" -o -name "*.mp3" -o -name "*.aac" -o -name "*.flac" \) ! -name "*.metadata" -print0 | \
-            while IFS= read -r -d '' file; do
-                if stat -c "%Y %n" "$file" 2>/dev/null; then
-                    echo "$(stat -c "%Y" "$file" 2>/dev/null) $file"
-                elif stat -f "%m %N" "$file" 2>/dev/null; then
-                    echo "$(stat -f "%m" "$file" 2>/dev/null) $file"
-                fi
-            done | sort -n | cut -d' ' -f2- > "$temp_order"
+        find "$album_dir" -name "*.*" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" -o -name "*.mp3" -o -name "*.aac" -o -name "*.flac" \) ! -name "*.metadata" > "$temp_order"
+    fi
+
+    # Sort by creation time if possible, otherwise keep find order
+    if stat -c "%Y" . >/dev/null 2>&1; then
+        # GNU stat (Linux) - sort by creation time
+        local temp_sorted="/tmp/youmad_sorted_$.txt"
+        while IFS= read -r file; do
+            [[ -f "$file" ]] && echo "$(stat -c "%Y" "$file" 2>/dev/null) $file"
+        done < "$temp_order" | sort -n | cut -d' ' -f2- > "$temp_sorted"
+        mv "$temp_sorted" "$temp_order"
+    elif stat -f "%m" . >/dev/null 2>&1; then
+        # BSD stat (macOS) - sort by creation time
+        local temp_sorted="/tmp/youmad_sorted_$.txt"
+        while IFS= read -r file; do
+            [[ -f "$file" ]] && echo "$(stat -f "%m" "$file" 2>/dev/null) $file"
+        done < "$temp_order" | sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_sorted"
+        mv "$temp_sorted" "$temp_order"
     fi
 
     # Debug: show what files we found
@@ -291,13 +461,22 @@ clean_metadata() {
 
         [[ "$VERBOSE" == true ]] && log "INFO" "Processing file $counter: $filename (type: $file_ext)"
 
-        # Extract title from filename (use the temp filename)
+        # Extract title from filename
         local title
         if [[ "$filename" =~ ^temp_(.*)\.[^.]+$ ]]; then
+            title="${BASH_REMATCH[1]}"
+        elif [[ "$filename" =~ ^[0-9]+[[:space:]]*-[[:space:]]*(.*)\.[^.]+$ ]]; then
+            title="${BASH_REMATCH[1]}"
+        elif [[ "$filename" =~ ^[^-]*-[[:space:]]*(.*)\.[^.]+$ ]]; then
+            title="${BASH_REMATCH[1]}"
+        elif [[ "$filename" =~ ^(.*)\.[^.]+$ ]]; then
             title="${BASH_REMATCH[1]}"
         else
             title="Track $counter"
         fi
+
+        # Store original title for thumbnail lookup (before renaming)
+        local original_title="$title"
 
         # Determine final extension and rename file
         local final_ext="$file_ext"
@@ -341,8 +520,8 @@ clean_metadata() {
                 local track_title=""
                 if [[ "$current_file" =~ ^.*/[0-9]+\ -\ (.*)\.webm$ ]]; then
                     track_title="${BASH_REMATCH[1]}"
-                    # Look for the original temp thumbnail file
-                    local temp_thumbnail="$album_dir/temp_${track_title}.webp"
+                    # Look for the original temp thumbnail file using original title
+                    local temp_thumbnail="$album_dir/temp_${original_title}.webp"
                     if [[ -f "$temp_thumbnail" ]]; then
                         thumbnail_file="$temp_thumbnail"
                     fi
@@ -480,19 +659,23 @@ clean_metadata() {
                     original_performer=$(ffprobe -v quiet -show_entries format_tags=performer -of default=noprint_wrappers=1:nokey=1 "$current_file" 2>/dev/null)
                 fi
 
-                # Clean up corresponding thumbnail file (we'll rely on cover.jpg instead)
-                local track_title=""
-                if [[ "$current_file" =~ ^.*/[0-9]+\ -\ (.*)\.m4a$ ]]; then
-                    track_title="${BASH_REMATCH[1]}"
-                    local thumbnail_file="$album_dir/temp_${track_title}.webp"
-                    if [[ -f "$thumbnail_file" ]]; then
-                        rm -f "$thumbnail_file"
-                        [[ "$VERBOSE" == true ]] && log "INFO" "Cleaned up thumbnail: $(basename "$thumbnail_file")"
+                # Find and process corresponding thumbnail file using original title
+                local thumbnail_file="$album_dir/temp_${original_title}.webp"
+                if [[ -f "$thumbnail_file" ]]; then
+                    local cover_file="$album_dir/cover.jpg"
+                    # Convert WebP to square JPEG by cropping to center square (only if cover doesn't exist)
+                    if [[ ! -f "$cover_file" ]] && ffmpeg -i "$thumbnail_file" -vf "crop=min(iw\,ih):min(iw\,ih)" -q:v 2 "$cover_file" -y >/dev/null 2>&1; then
+                        [[ "$VERBOSE" == true ]] && log "INFO" "Saved square album art as: $(basename "$cover_file")"
                     fi
+                    # Clean up the thumbnail file
+                    rm -f "$thumbnail_file"
+                    [[ "$VERBOSE" == true ]] && log "INFO" "Cleaned up thumbnail: $(basename "$thumbnail_file")"
+                else
+                    [[ "$VERBOSE" == true ]] && log "INFO" "No thumbnail found for: $original_title (looked for: temp_${original_title}.webp)"
                 fi
 
                 # Build ffmpeg command to clean metadata (no thumbnail embedding)
-                local temp_m4a="/tmp/youmad_m4a_$$.m4a"
+                local temp_m4a="/tmp/youmad_m4a_$.m4a"
                 local ffmpeg_cmd=(
                     ffmpeg -i "$current_file"
                     -c copy
@@ -615,7 +798,7 @@ download_album() {
     fi
 
     # Extract track URLs
-    local temp_urls="/tmp/youmad_urls_$$.txt"
+    local temp_urls="/tmp/youmad_urls_$.txt"
     local start_time=$(date +%s)
 
     if ! yt-dlp --flat-playlist --get-url "$url" > "$temp_urls" 2>/dev/null; then
@@ -759,18 +942,6 @@ process_urls() {
         artist="$(echo "$artist" | xargs)"
         release_type="$(echo "$release_type" | xargs)"
 
-        # Map release types
-        case "$release_type" in
-            live) plex_release_type="album;live" ;;
-            comp) plex_release_type="album;compilation" ;;
-            soundtrack) plex_release_type="album;soundtrack" ;;
-            demo) plex_release_type="album;demo" ;;
-            remix) plex_release_type="album;remix" ;;
-            ep) plex_release_type="ep" ;;
-            single) plex_release_type="single" ;;
-            *) plex_release_type="album" ;;
-        esac
-
         # Validate URL
         if ! echo "$url" | grep -q "^https\?://"; then
             log "ERROR" "Invalid URL: $url"
@@ -781,12 +952,35 @@ process_urls() {
 
         [[ -z "$artist" ]] && artist="Unknown Artist"
 
-        # Download
-        if download_album "$url" "$artist" "$line_num/$total_urls" "$plex_release_type"; then
-            processed=$((processed + 1))
+        # Check if this is playlist mode
+        if [[ "$release_type" == "playlist" ]]; then
+            # Use playlist download mode
+            if download_playlist "$url" "$artist" "$line_num/$total_urls"; then
+                processed=$((processed + 1))
+            else
+                echo "Failed: $line" >> "$ERROR_LOG"
+                failed=$((failed + 1))
+            fi
         else
-            echo "Failed: $line" >> "$ERROR_LOG"
-            failed=$((failed + 1))
+            # Use album download mode with release type mapping
+            local plex_release_type
+            case "$release_type" in
+                live) plex_release_type="album;live" ;;
+                comp) plex_release_type="album;compilation" ;;
+                soundtrack) plex_release_type="album;soundtrack" ;;
+                demo) plex_release_type="album;demo" ;;
+                remix) plex_release_type="album;remix" ;;
+                ep) plex_release_type="ep" ;;
+                single) plex_release_type="single" ;;
+                *) plex_release_type="album" ;;
+            esac
+
+            if download_album "$url" "$artist" "$line_num/$total_urls" "$plex_release_type"; then
+                processed=$((processed + 1))
+            else
+                echo "Failed: $line" >> "$ERROR_LOG"
+                failed=$((failed + 1))
+            fi
         fi
 
         [[ "$DRY_RUN" != true ]] && sleep 2
@@ -809,7 +1003,7 @@ process_urls() {
 
 # Main function
 main() {
-    log "INFO" "Starting YouMAD? v2.0.3"
+    log "INFO" "Starting YouMAD? v2.1.0"
 
     parse_arguments "$@"
     load_config
