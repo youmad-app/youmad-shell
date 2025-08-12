@@ -1,5 +1,5 @@
 #!/bin/bash
-# YouMAD? - Your Music Album Downloader v2.0.2
+# YouMAD? - Your Music Album Downloader v2.0.3
 
 set -euo pipefail
 
@@ -40,7 +40,7 @@ log() {
 # Show usage
 show_usage() {
     cat << EOF
-YouMAD? - Your Music Album Downloader v2.0.2
+YouMAD? - Your Music Album Downloader v2.0.3
 
 Usage: $0 [OPTIONS]
 
@@ -357,9 +357,9 @@ clean_metadata() {
                 # Note: Opus format doesn't support embedded album art, but we can save it as cover.jpg
                 if [[ -n "$thumbnail_file" && -f "$thumbnail_file" ]]; then
                     local cover_file="$album_dir/cover.jpg"
-                    # Convert WebP to JPEG and save as cover.jpg
-                    if ffmpeg -i "$thumbnail_file" "$cover_file" -y >/dev/null 2>&1; then
-                        [[ "$VERBOSE" == true ]] && log "INFO" "Saved album art as: $(basename "$cover_file")"
+                    # Convert WebP to square JPEG by cropping to center square
+                    if ffmpeg -i "$thumbnail_file" -vf "crop=min(iw\,ih):min(iw\,ih)" -q:v 2 "$cover_file" -y >/dev/null 2>&1; then
+                        [[ "$VERBOSE" == true ]] && log "INFO" "Saved square album art as: $(basename "$cover_file")"
                     else
                         [[ "$VERBOSE" == true ]] && log "WARN" "Failed to convert thumbnail to cover.jpg"
                     fi
@@ -468,68 +468,68 @@ clean_metadata() {
                     log "WARN" "Failed to set Opus metadata for: $(basename "$current_file")"
                 fi
                 ;;
-                "mp4")
-                    # For MP4 files (now renamed to M4A), extract performer and set metadata
-                    [[ "$VERBOSE" == true ]] && log "INFO" "Processing MP4 (now M4A) file: $(basename "$current_file")"
+            "mp4")
+                # For MP4 files (now renamed to M4A), extract performer and set metadata
+                [[ "$VERBOSE" == true ]] && log "INFO" "Processing MP4 (now M4A) file: $(basename "$current_file")"
 
-                    # Extract original performer from MP4 metadata
-                    local original_performer=""
-                    original_performer=$(ffprobe -v quiet -show_entries format_tags=artist -of default=noprint_wrappers=1:nokey=1 "$current_file" 2>/dev/null)
+                # Extract original performer from MP4 metadata
+                local original_performer=""
+                original_performer=$(ffprobe -v quiet -show_entries format_tags=artist -of default=noprint_wrappers=1:nokey=1 "$current_file" 2>/dev/null)
 
-                    if [[ -z "$original_performer" ]]; then
-                        original_performer=$(ffprobe -v quiet -show_entries format_tags=performer -of default=noprint_wrappers=1:nokey=1 "$current_file" 2>/dev/null)
+                if [[ -z "$original_performer" ]]; then
+                    original_performer=$(ffprobe -v quiet -show_entries format_tags=performer -of default=noprint_wrappers=1:nokey=1 "$current_file" 2>/dev/null)
+                fi
+
+                # Clean up corresponding thumbnail file (we'll rely on cover.jpg instead)
+                local track_title=""
+                if [[ "$current_file" =~ ^.*/[0-9]+\ -\ (.*)\.m4a$ ]]; then
+                    track_title="${BASH_REMATCH[1]}"
+                    local thumbnail_file="$album_dir/temp_${track_title}.webp"
+                    if [[ -f "$thumbnail_file" ]]; then
+                        rm -f "$thumbnail_file"
+                        [[ "$VERBOSE" == true ]] && log "INFO" "Cleaned up thumbnail: $(basename "$thumbnail_file")"
                     fi
+                fi
 
-                    # Clean up corresponding thumbnail file (we'll rely on cover.jpg instead)
-                    local track_title=""
-                    if [[ "$current_file" =~ ^.*/[0-9]+\ -\ (.*)\.m4a$ ]]; then
-                        track_title="${BASH_REMATCH[1]}"
-                        local thumbnail_file="$album_dir/temp_${track_title}.webp"
-                        if [[ -f "$thumbnail_file" ]]; then
-                            rm -f "$thumbnail_file"
-                            [[ "$VERBOSE" == true ]] && log "INFO" "Cleaned up thumbnail: $(basename "$thumbnail_file")"
-                        fi
-                    fi
+                # Build ffmpeg command to clean metadata (no thumbnail embedding)
+                local temp_m4a="/tmp/youmad_m4a_$$.m4a"
+                local ffmpeg_cmd=(
+                    ffmpeg -i "$current_file"
+                    -c copy
+                    -map_metadata -1
+                    -metadata TITLE="$title"
+                    -metadata ARTIST="$artist"
+                    -metadata ALBUM="$album_name"
+                    -metadata ALBUMARTIST="$artist"
+                    -metadata TRACK="$counter"
+                    -metadata DATE="$year"
+                    -metadata RELEASETYPE="$release_type"
+                )
 
-                    # Build ffmpeg command to clean metadata (no thumbnail embedding)
-                    local temp_m4a="/tmp/youmad_m4a_$$.m4a"
-                    local ffmpeg_cmd=(
-                        ffmpeg -i "$current_file"
-                        -c copy
-                        -map_metadata -1
-                        -metadata TITLE="$title"
-                        -metadata ARTIST="$artist"
-                        -metadata ALBUM="$album_name"
-                        -metadata ALBUMARTIST="$artist"
-                        -metadata TRACK="$counter"
-                        -metadata DATE="$year"
-                        -metadata RELEASETYPE="$release_type"
-                    )
+                # Add performer metadata
+                if [[ -n "$original_performer" ]]; then
+                    ffmpeg_cmd+=(-metadata PERFORMER="$original_performer")
+                    [[ "$VERBOSE" == true ]] && log "INFO" "Using original performer: $original_performer"
+                else
+                    ffmpeg_cmd+=(-metadata PERFORMER="$artist")
+                    [[ "$VERBOSE" == true ]] && log "INFO" "No original performer found, using artist: $artist"
+                fi
 
-                    # Add performer metadata
-                    if [[ -n "$original_performer" ]]; then
-                        ffmpeg_cmd+=(-metadata PERFORMER="$original_performer")
-                        [[ "$VERBOSE" == true ]] && log "INFO" "Using original performer: $original_performer"
+                # Add output file
+                ffmpeg_cmd+=("$temp_m4a")
+
+                if "${ffmpeg_cmd[@]}" >/dev/null 2>&1; then
+                    if [[ -f "$temp_m4a" ]]; then
+                        mv "$temp_m4a" "$current_file"
+                        [[ "$VERBOSE" == true ]] && log "INFO" "Set M4A metadata for track $counter"
                     else
-                        ffmpeg_cmd+=(-metadata PERFORMER="$artist")
-                        [[ "$VERBOSE" == true ]] && log "INFO" "No original performer found, using artist: $artist"
+                        log "WARN" "ffmpeg succeeded but temp file not created: $temp_m4a"
                     fi
-
-                    # Add output file
-                    ffmpeg_cmd+=("$temp_m4a")
-
-                    if "${ffmpeg_cmd[@]}" >/dev/null 2>&1; then
-                        if [[ -f "$temp_m4a" ]]; then
-                            mv "$temp_m4a" "$current_file"
-                            [[ "$VERBOSE" == true ]] && log "INFO" "Set M4A metadata for track $counter"
-                        else
-                            log "WARN" "ffmpeg succeeded but temp file not created: $temp_m4a"
-                        fi
-                    else
-                        rm -f "$temp_m4a"
-                        log "WARN" "Failed to set M4A metadata for: $(basename "$current_file")"
-                    fi
-                    ;;
+                else
+                    rm -f "$temp_m4a"
+                    log "WARN" "Failed to set M4A metadata for: $(basename "$current_file")"
+                fi
+                ;;
             "m4a")
                 # For existing M4A files, just update metadata using exiftool
                 exiftool -overwrite_original \
@@ -809,7 +809,7 @@ process_urls() {
 
 # Main function
 main() {
-    log "INFO" "Starting YouMAD? v2.0.2"
+    log "INFO" "Starting YouMAD? v2.0.3"
 
     parse_arguments "$@"
     load_config
