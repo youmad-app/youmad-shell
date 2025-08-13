@@ -876,6 +876,9 @@ process_urls() {
         [[ "$DRY_RUN" != true ]] && sleep 2
     done
 
+    # Add a clean line break before final summary
+    [[ "$VERBOSE" != true ]] && echo
+
     # Summary
     if [[ "$DRY_RUN" == true ]]; then
         log "INFO" "Dry run complete: Analyzed $processed/$total_urls URLs"
