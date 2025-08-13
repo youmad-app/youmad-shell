@@ -132,7 +132,7 @@ Because unlike some people, we believe in organization.
 - Fetches thumnail, converts it from 16:9 format to square, saves it as `cover.jpg` in the album folder
 - Converts WebM to Opus, keeps M4A as-is
 - Perfect for albums that need to be organized
-- File output: `01 - Track Name.opus`
+- File output: `Artist/Album Name/01 - Track Name.opus`
 
 **Playlist Mode (add `;playlist` to URL):**
 - Downloads entire playlist directly
