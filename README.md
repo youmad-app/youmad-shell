@@ -1,10 +1,12 @@
 # [YouMAD?](https://www.youmad.org) - https://YouMAD.org
 
-![Version](https://img.shields.io/badge/version-2.1.0-blue) ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-green) ![License](https://img.shields.io/badge/license-BSD--3--Clause-orange)
+![Version](https://img.shields.io/badge/version-2.1.2-blue) ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-green) ![License](https://img.shields.io/badge/license-BSD--3--Clause-orange)
 
 **Your Music Album Downloader**
 
 Downloads albums and playlists from YouTube Music. Yeah, we know. Another downloader script. How original. But this one actually works without making you want to throw your laptop out the window.
+
+**NOTE:** Due to a bug, YouMAD? will only download the first album in urls.txt. Please download albums individually, a fix is in the works.
 
 <img src="https://github.com/youmad-app/youmad-shell/blob/main/youmad-neon.png" width="500">
 
