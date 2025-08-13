@@ -4,7 +4,7 @@
 
 **Your Music Album Downloader**
 
-Downloads albums and playlists from YouTube Music. Yeah, we know. Another downloader script. How original. But this one actually works without making you want to throw your laptop out the window. Besides, this one downloads the highest audio quality and never does any re-encoding.
+Downloads albums and playlists from YouTube Music. Yeah, we know. Another downloader script. How original. But this one actually works without making you want to throw your laptop out the window. Besides, **this one downloads the highest audio quality and never does any re-encoding**.
 
 **NOTE:** Due to a bug, YouMAD? will only download the first album in urls.txt. Please download albums individually, a fix is in the works.
 
