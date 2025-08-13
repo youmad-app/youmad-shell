@@ -1,5 +1,5 @@
 #!/bin/bash
-# YouMAD? - Your Music Album Downloader v2.1.2
+# YouMAD? - Your Music Album Downloader v2.1.3
 
 set -euo pipefail
 
@@ -23,6 +23,10 @@ ERROR_LOG="$WORK_DIR/errors.log"
 ACTIVITY_LOG="$WORK_DIR/activity.log"
 USER_AGENT="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
+# Log management settings
+MAX_LOG_LINES=5000
+ROTATION_KEEP=3
+
 # Options
 DRY_RUN=false
 OVERRIDE=false
@@ -37,10 +41,41 @@ log() {
     echo "[$timestamp] [$level] $message" | tee -a "$ACTIVITY_LOG"
 }
 
+# Rotate activity log if it gets too large
+rotate_log() {
+    if [[ -f "$ACTIVITY_LOG" ]]; then
+        local line_count=$(wc -l < "$ACTIVITY_LOG" 2>/dev/null || echo 0)
+        
+        if [[ "$line_count" -gt "$MAX_LOG_LINES" ]]; then
+            log "INFO" "Activity log has $line_count lines, rotating..."
+            
+            # Rotate existing logs
+            for ((i=$ROTATION_KEEP; i>=1; i--)); do
+                local old_log="${ACTIVITY_LOG}.$i"
+                local new_log="${ACTIVITY_LOG}.$((i+1))"
+                [[ -f "$old_log" ]] && mv "$old_log" "$new_log" 2>/dev/null
+            done
+            
+            # Keep the most recent portion of the current log
+            local temp_log="/tmp/youmad_log_$.tmp"
+            tail -n $((MAX_LOG_LINES / 2)) "$ACTIVITY_LOG" > "$temp_log"
+            mv "$ACTIVITY_LOG" "${ACTIVITY_LOG}.1"
+            mv "$temp_log" "$ACTIVITY_LOG"
+            
+            # Clean up old rotated logs beyond the keep limit
+            for ((i=$((ROTATION_KEEP+2)); i<=10; i++)); do
+                [[ -f "${ACTIVITY_LOG}.$i" ]] && rm -f "${ACTIVITY_LOG}.$i"
+            done
+            
+            log "INFO" "Log rotated. Kept most recent $((MAX_LOG_LINES / 2)) lines"
+        fi
+    fi
+}
+
 # Show usage
 show_usage() {
     cat << EOF
-YouMAD? - Your Music Album Downloader v2.1.2
+YouMAD? - Your Music Album Downloader v2.1.3
 
 Usage: $0 [OPTIONS]
 
@@ -138,6 +173,9 @@ parse_arguments() {
 
 # Initialize files
 initialize_files() {
+    # Rotate log if needed before starting
+    rotate_log
+    
     touch "$DOWNLOAD_ARCHIVE" "$ERROR_LOG" "$ACTIVITY_LOG"
 
     if [[ ! -f "$URL_FILE" ]]; then
@@ -704,6 +742,45 @@ download_album() {
     return 0
 }
 
+# Parse a single line from urls.txt
+parse_url_line() {
+    local line="$1"
+    local url=""
+    local artist=""
+    local release_type=""
+    
+    # Find the first semicolon
+    if [[ "$line" == *";"* ]]; then
+        url="${line%%;*}"
+        local remainder="${line#*;}"
+        
+        # Find the second semicolon
+        if [[ "$remainder" == *";"* ]]; then
+            artist="${remainder%%;*}"
+            release_type="${remainder#*;}"
+        else
+            artist="$remainder"
+            release_type=""
+        fi
+    else
+        url="$line"
+        artist=""
+        release_type=""
+    fi
+    
+    # Trim whitespace using a simpler method
+    url=$(echo "$url" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    artist=$(echo "$artist" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    release_type=$(echo "$release_type" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    
+    # Set defaults
+    [[ -z "$artist" ]] && artist="Unknown Artist"
+    [[ -z "$release_type" ]] && release_type="album"
+    
+    # Return the parsed values
+    echo "$url|$artist|$release_type"
+}
+
 # Process all URLs
 process_urls() {
     if [[ ! -f "$URL_FILE" ]]; then
@@ -714,14 +791,15 @@ process_urls() {
     > "$ERROR_LOG"
     log "INFO" "Processing URLs from $URL_FILE"
 
-    # Count valid URLs
-    local total_urls=0
+    # Read all lines into an array first to avoid file descriptor issues
+    local -a all_lines=()
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
-        total_urls=$((total_urls + 1))
+        all_lines+=("$line")
     done < "$URL_FILE"
 
+    local total_urls=${#all_lines[@]}
     log "INFO" "Found $total_urls valid URLs"
 
     if [[ "$total_urls" -eq 0 ]]; then
@@ -729,22 +807,23 @@ process_urls() {
         return 0
     fi
 
-    # Process URLs
+    # Process URLs from the array
     local processed=0
     local failed=0
     local line_num=0
 
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        [[ "$line" =~ ^[[:space:]]*# ]] && continue
-
+    for line in "${all_lines[@]}"; do
         line_num=$((line_num + 1))
-
-        # Parse line
-        IFS=';' read -r url artist release_type <<< "$line"
-        url="$(echo "$url" | xargs)"
-        artist="$(echo "$artist" | xargs)"
-        release_type="$(echo "$release_type" | xargs)"
+        
+        # Debug the raw line immediately after reading from array
+        if [[ "$VERBOSE" == true ]]; then
+            log "INFO" "Raw line $line_num from array: '$line'"
+            log "INFO" "Line length: ${#line}"
+            log "INFO" "First 10 chars: '${line:0:10}'"
+            log "INFO" "Processing line $line_num: '$line'"
+            log "INFO" "Parsed result: '$parsed_line'"
+            log "INFO" "Extracted - URL: '$url', Artist: '$artist', Type: '$release_type'"
+        fi
 
         # Validate URL
         if ! echo "$url" | grep -q "^https\?://"; then
@@ -753,8 +832,6 @@ process_urls() {
             failed=$((failed + 1))
             continue
         fi
-
-        [[ -z "$artist" ]] && artist="Unknown Artist"
 
         # Check if this is playlist mode
         if [[ "$release_type" == "playlist" ]]; then
@@ -787,7 +864,7 @@ process_urls() {
         fi
 
         [[ "$DRY_RUN" != true ]] && sleep 2
-    done < "$URL_FILE"
+    done
 
     # Summary
     if [[ "$DRY_RUN" == true ]]; then
@@ -805,7 +882,7 @@ process_urls() {
 
 # Main function
 main() {
-    log "INFO" "Starting YouMAD? v2.1.2"
+    log "INFO" "Starting YouMAD? v2.1.3"
 
     parse_arguments "$@"
     load_config
