@@ -140,7 +140,7 @@ Because unlike some people, we believe in organization.
 - Playlists can be downloaded over and over, only new additions are grabbed
 - Simple folder structure, no track renumbering
 - Great for your own curated playlists
-- File output: `Track Name.opus`
+- File output: `Playlist Name/Track Name.opus`
 
 Both modes preserve maximum audio quality with zero re-encoding.
 
