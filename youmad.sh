@@ -815,6 +815,16 @@ process_urls() {
     for line in "${all_lines[@]}"; do
         line_num=$((line_num + 1))
         
+        # Parse line using the new robust method
+        local parsed_line
+        parsed_line=$(parse_url_line "$line")
+        
+        # Extract the parsed components
+        local old_ifs="$IFS"
+        IFS='|'
+        read -r url artist release_type <<< "$parsed_line"
+        IFS="$old_ifs"
+        
         # Debug the raw line immediately after reading from array
         if [[ "$VERBOSE" == true ]]; then
             log "INFO" "Raw line $line_num from array: '$line'"
