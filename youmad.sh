@@ -1,5 +1,5 @@
 #!/bin/bash
-# YouMAD? - Your Music Album Downloader v2.1.1
+# YouMAD? - Your Music Album Downloader v2.1.2
 
 set -euo pipefail
 
@@ -40,7 +40,7 @@ log() {
 # Show usage
 show_usage() {
     cat << EOF
-YouMAD? - Your Music Album Downloader v2.1.1
+YouMAD? - Your Music Album Downloader v2.1.2
 
 Usage: $0 [OPTIONS]
 
@@ -187,13 +187,17 @@ check_dependencies() {
     log "INFO" "All dependencies found: yt-dlp, ffmpeg, exiftool, jq"
 }
 
-# Get album info
+# Get album info with improved year detection
 get_album_info() {
     local url="$1"
+    local get_year="${2:-false}"
     local temp_json="/tmp/youmad_info_$$.json"
 
     if yt-dlp --dump-json --flat-playlist --no-warnings --quiet "$url" > "$temp_json" 2>/dev/null; then
         local album_title
+        local year=""
+        
+        # Try to get album title
         album_title=$(jq -r '
             if type == "array" then
                 (.[0].playlist // .[0].album // "Unknown Album")
@@ -205,13 +209,91 @@ get_album_info() {
             album_title="Unknown Album"
         fi
 
+        # Try to get year if requested
+        if [[ "$get_year" == "true" ]]; then
+            # First try release_year field
+            year=$(jq -r '
+                if type == "array" then
+                    (.[0].release_year // .[0].upload_date // "" | tostring)
+                else
+                    (.release_year // .upload_date // "" | tostring)
+                end' "$temp_json" 2>/dev/null | head -1)
+            
+            # If we got upload_date format (YYYYMMDD), extract year
+            if [[ "$year" =~ ^[0-9]{8}$ ]]; then
+                year="${year:0:4}"
+            elif [[ "$year" =~ ^[0-9]{4} ]]; then
+                year="${BASH_REMATCH[0]}"
+            fi
+            
+            # If still no year, try to extract from title or description
+            if [[ -z "$year" || "$year" == "null" ]]; then
+                local desc=$(jq -r '
+                    if type == "array" then
+                        (.[0].description // "")
+                    else
+                        (.description // "")
+                    end' "$temp_json" 2>/dev/null)
+                
+                # Look for year patterns in description
+                if [[ "$desc" =~ (19[5-9][0-9]|20[0-2][0-9]) ]]; then
+                    year="${BASH_REMATCH[1]}"
+                fi
+            fi
+            
+            [[ -z "$year" || "$year" == "null" ]] && year=""
+        fi
+
         rm -f "$temp_json"
-        echo "$album_title"
+        
+        if [[ "$get_year" == "true" ]]; then
+            echo "${album_title}|${year}"
+        else
+            echo "$album_title"
+        fi
     else
         rm -f "$temp_json"
-        echo "Unknown Album"
+        if [[ "$get_year" == "true" ]]; then
+            echo "Unknown Album|"
+        else
+            echo "Unknown Album"
+        fi
         return 1
     fi
+}
+
+# Get detailed track info including year
+get_track_year() {
+    local track_url="$1"
+    local temp_json="/tmp/youmad_track_$$.json"
+    local year=""
+    
+    if yt-dlp --dump-json --no-warnings --quiet "$track_url" > "$temp_json" 2>/dev/null; then
+        # Try multiple fields for year
+        year=$(jq -r '
+            .release_year // 
+            .release_date // 
+            .upload_date // 
+            "" | tostring' "$temp_json" 2>/dev/null)
+        
+        # Process different date formats
+        if [[ "$year" =~ ^[0-9]{8}$ ]]; then
+            # YYYYMMDD format
+            year="${year:0:4}"
+        elif [[ "$year" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2} ]]; then
+            # YYYY-MM-DD format
+            year="${year:0:4}"
+        elif [[ "$year" =~ ^[0-9]{4} ]]; then
+            # Already just year
+            year="${BASH_REMATCH[0]}"
+        else
+            year=""
+        fi
+        
+        rm -f "$temp_json"
+    fi
+    
+    echo "$year"
 }
 
 # Download playlist with simple cleanup
@@ -236,11 +318,12 @@ download_playlist() {
     return 0
 }
 
-# FIXED Clean and set metadata function
+# Clean and set metadata with improved year handling
 clean_metadata() {
     local artist="$1"
     local album_dir="$2"
     local release_type="$3"
+    local album_year="${4:-}"  # Pass year from download phase
 
     if [[ "$DRY_RUN" == true ]]; then
         [[ "$VERBOSE" == true ]] && log "INFO" "[DRY RUN] Would clean metadata in $album_dir"
@@ -257,17 +340,22 @@ clean_metadata() {
     # Get album name from directory
     local album_name=$(basename "$album_dir" | sed 's/_/ /g')
 
-    # Default year
-    local year="2020"
-    if [[ "$album_name" =~ [[:space:]]([0-9]{4})[[:space:]]* ]]; then
-        year="${BASH_REMATCH[1]}"
-    elif [[ "$album_name" =~ ([0-9]{4}) ]]; then
-        year="${BASH_REMATCH[1]}"
+    # Use passed year or try to extract from album name as fallback
+    local year="$album_year"
+    if [[ -z "$year" ]]; then
+        if [[ "$album_name" =~ [[:space:]]([0-9]{4})[[:space:]]* ]]; then
+            year="${BASH_REMATCH[1]}"
+        elif [[ "$album_name" =~ ([0-9]{4}) ]]; then
+            year="${BASH_REMATCH[1]}"
+        fi
     fi
+    
+    # Final fallback to current year instead of 2020
+    [[ -z "$year" ]] && year=$(date +%Y)
+    
+    [[ "$VERBOSE" == true ]] && log "INFO" "Using year: $year for album: $album_name"
 
-    # Replace the entire file processing section in clean_metadata() with this array-based approach:
-
-    # Find all audio files - FIXED approach using arrays
+    # Find all audio files
     local temp_order="/tmp/youmad_order_$.txt"
     find "$album_dir" -name "temp_*" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" \) | sort > "$temp_order"
 
@@ -277,7 +365,7 @@ clean_metadata() {
         find "$album_dir" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" \) | sort > "$temp_order"
     fi
 
-    # Read files into array - FIXED METHOD
+    # Read files into array
     declare -a files_array
     while IFS= read -r file; do
         if [[ -f "$file" ]]; then
@@ -291,10 +379,9 @@ clean_metadata() {
         for i in "${!files_array[@]}"; do
             log "INFO" "  $((i+1)). $(basename "${files_array[i]}")"
         done
-        log "INFO" "Array contents: ${files_array[*]}"
     fi
 
-    # Process files using array index - NO WHILE LOOP ISSUES
+    # Process files using array index
     for i in "${!files_array[@]}"; do
         local file="${files_array[i]}"
         local counter=$((i + 1))
@@ -435,7 +522,7 @@ clean_metadata() {
                 ;;
             "m4a")
                 [[ "$VERBOSE" == true ]] && log "INFO" "Processing M4A file: $(basename "$current_file")"
-                exiftool -overwrite_original -Track="$counter" -Title="$title" -Artist="$artist" -Album="$album_name" "$current_file" >/dev/null 2>&1
+                exiftool -overwrite_original -Track="$counter" -Title="$title" -Artist="$artist" -Album="$album_name" -Year="$year" "$current_file" >/dev/null 2>&1
                 ;;
         esac
     done
@@ -447,7 +534,6 @@ clean_metadata() {
     find "$album_dir" -name "temp_*.webp" -delete 2>/dev/null
     [[ "$VERBOSE" == true ]] && log "INFO" "Cleaned up any remaining temp files"
     [[ "$VERBOSE" == true ]] && log "INFO" "Metadata processing completed for ${#files_array[@]} files"
-
 }
 
 # Find latest album directory
@@ -462,7 +548,7 @@ find_latest_album_dir() {
     fi
 }
 
-# Download album
+# Download album with improved year fetching
 download_album() {
     local url="$1"
     local artist="$2"
@@ -473,24 +559,29 @@ download_album() {
     artist_clean=$(echo "$artist_clean" | tr -d '/<>:"|?*' | tr ' ' '_')
 
     if [[ "$DRY_RUN" == true ]]; then
-        local album_title
-        album_title=$(get_album_info "$url")
+        local album_info
+        album_info=$(get_album_info "$url" "true")
+        IFS='|' read -r album_title album_year <<< "$album_info"
         if [[ "$VERBOSE" == true ]]; then
-            log "INFO" "Would download '$album_title' by '$artist'"
+            log "INFO" "Would download '$album_title' by '$artist' (Year: ${album_year:-Unknown})"
         else
-            printf "  Would download: %s - %s\n" "$artist" "$album_title"
+            printf "  Would download: %s - %s (Year: %s)\n" "$artist" "$album_title" "${album_year:-Unknown}"
         fi
         return 0
     fi
 
-    # Get album info
-    local album_title
-    album_title=$(get_album_info "$url")
+    # Get album info including year
+    local album_info
+    album_info=$(get_album_info "$url" "true")
+    IFS='|' read -r album_title album_year <<< "$album_info"
 
     if [[ "$VERBOSE" == true ]]; then
         log "INFO" "Starting download for $artist: $url"
+        [[ -n "$album_year" ]] && log "INFO" "Detected album year: $album_year"
     else
-        printf "\n[%s] %s - %s\n" "$line_num" "$artist" "${album_title:-Album}"
+        printf "\n[%s] %s - %s" "$line_num" "$artist" "${album_title:-Album}"
+        [[ -n "$album_year" ]] && printf " (%s)" "$album_year"
+        printf "\n"
         printf "Extracting tracks... "
     fi
 
@@ -514,6 +605,13 @@ download_album() {
     fi
 
     [[ "$VERBOSE" != true ]] && printf "found %d tracks\n" "$track_count"
+
+    # If we still don't have a year, try to get it from the first track
+    if [[ -z "$album_year" ]] && [[ -s "$temp_urls" ]]; then
+        local first_track_url=$(head -n1 "$temp_urls")
+        album_year=$(get_track_year "$first_track_url")
+        [[ -n "$album_year" && "$VERBOSE" == true ]] && log "INFO" "Got year from first track: $album_year"
+    fi
 
     # Download tracks
     local track_num=1
@@ -590,14 +688,14 @@ download_album() {
         fi
     fi
 
-    # Process metadata
+    # Process metadata with year
     if [[ "$failed_tracks" -eq 0 ]]; then
         local latest_album_dir
         latest_album_dir=$(find_latest_album_dir "$artist_clean")
 
         if [[ -n "$latest_album_dir" ]]; then
-            clean_metadata "$artist" "$latest_album_dir" "$release_type"
-            [[ "$VERBOSE" != true ]] && printf "  📝 Metadata updated\n"
+            clean_metadata "$artist" "$latest_album_dir" "$release_type" "$album_year"
+            [[ "$VERBOSE" != true ]] && printf "  📝 Metadata updated (Year: %s)\n" "${album_year:-$(date +%Y)}"
         else
             log "WARN" "Could not find album directory for metadata processing"
         fi
@@ -707,7 +805,7 @@ process_urls() {
 
 # Main function
 main() {
-    log "INFO" "Starting YouMAD? v2.1.1"
+    log "INFO" "Starting YouMAD? v2.1.2"
 
     parse_arguments "$@"
     load_config
