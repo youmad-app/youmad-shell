@@ -393,14 +393,28 @@ clean_metadata() {
     
     [[ "$VERBOSE" == true ]] && log "INFO" "Using year: $year for album: $album_name"
 
-    # Find all audio files
+# With this macOS-compatible version:
+
+    # Find all audio files (macOS compatible)
     local temp_order="/tmp/youmad_order_$.txt"
-    find "$album_dir" -name "temp_*" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" \) -exec stat -c "%Y %n" {} \; | sort -n | cut -d' ' -f2- > "$temp_order"
+    if stat -c "%Y" . >/dev/null 2>&1; then
+        # GNU stat (Linux/WSL)
+        find "$album_dir" -name "temp_*" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" \) -exec stat -c "%Y %n" {} \; | sort -n | cut -d' ' -f2- > "$temp_order"
+    else
+        # BSD stat (macOS)
+        find "$album_dir" -name "temp_*" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" \) -exec stat -f "%m %N" {} \; | sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order"
+    fi
 
     # Fallback
     if [[ ! -s "$temp_order" ]]; then
         [[ "$VERBOSE" == true ]] && log "INFO" "No temp_ files found, searching for any audio files"
-        find "$album_dir" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" \) -exec stat -c "%Y %n" {} \; | sort -n | cut -d' ' -f2- > "$temp_order"
+        if stat -c "%Y" . >/dev/null 2>&1; then
+            # GNU stat (Linux/WSL)
+            find "$album_dir" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" \) -exec stat -c "%Y %n" {} \; | sort -n | cut -d' ' -f2- > "$temp_order"
+        else
+            # BSD stat (macOS)
+            find "$album_dir" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" \) -exec stat -f "%m %N" {} \; | sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_order"
+        fi
     fi
 
     # Read files into array
