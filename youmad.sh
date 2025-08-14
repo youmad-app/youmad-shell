@@ -395,12 +395,12 @@ clean_metadata() {
 
     # Find all audio files
     local temp_order="/tmp/youmad_order_$.txt"
-    find "$album_dir" -name "temp_*" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" \) | sort > "$temp_order"
+    find "$album_dir" -name "temp_*" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" \) -exec stat -c "%Y %n" {} \; | sort -n | cut -d' ' -f2- > "$temp_order"
 
     # Fallback
     if [[ ! -s "$temp_order" ]]; then
         [[ "$VERBOSE" == true ]] && log "INFO" "No temp_ files found, searching for any audio files"
-        find "$album_dir" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" \) | sort > "$temp_order"
+        find "$album_dir" -type f \( -name "*.webm" -o -name "*.opus" -o -name "*.m4a" -o -name "*.mp4" \) -exec stat -c "%Y %n" {} \; | sort -n | cut -d' ' -f2- > "$temp_order"
     fi
 
     # Read files into array
