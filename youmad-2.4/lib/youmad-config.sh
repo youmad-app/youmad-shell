@@ -4,7 +4,7 @@
 
 # Default configuration values
 readonly DEFAULT_LIMIT_RATE="4M"
-readonly DEFAULT_BROWSER="chrome"
+readonly DEFAULT_BROWSER="none"
 readonly DEFAULT_MAX_LOG_LINES=5000
 readonly DEFAULT_ROTATION_KEEP=3
 
@@ -67,35 +67,49 @@ load_config() {
     return 0
 }
 
-# Create interactive configuration (for --config flag)
+# Create interactive configuration with helpful explanations
 create_interactive_config() {
     log "INFO" "Creating configuration at $CONFIG_FILE..."
 
-    echo "=== YouMAD? Configuration ==="
-    echo "Leave blank to use defaults shown in brackets."
-    echo
+    echo "=== YouMAD? Configuration Setup ==="
+    echo "Press Enter to use the default values shown in brackets."
+    echo ""
 
-    # Get download rate
+    # Download rate configuration
+    echo "DOWNLOAD RATE LIMIT"
+    echo "Controls how fast YouMAD downloads to avoid overwhelming your connection."
+    echo "Examples: 4M (fast), 1M (moderate), 500K (conservative), 100K (very slow)"
+    echo "Higher rates download faster but may cause network issues on slower connections."
     local input_limit
-    read -rp "Maximum download rate (e.g., 4M, 1M, 500K) [${DEFAULT_LIMIT_RATE}]: " input_limit
+    read -rp "Maximum download rate [${DEFAULT_LIMIT_RATE}]: " input_limit
     LIMIT_RATE="${input_limit:-$DEFAULT_LIMIT_RATE}"
+    echo ""
 
-    # Get browser
+    # Browser configuration
+    echo "BROWSER COOKIES (currently unused by YouMAD?)"
+    echo "Future feature for accessing premium/region-locked content via cookies."
+    echo "Select 'none' unless you plan to use cookie-based authentication later."
+    echo "Options: none (default), file (cookie file), chrome, chromium, brave, firefox, safari, edge"
     local input_browser
-    read -rp "Browser for cookies (chrome, chromium, brave, firefox, safari, edge) [${DEFAULT_BROWSER}]: " input_browser
+    read -rp "Cookie source for future support [${DEFAULT_BROWSER}]: " input_browser
     BROWSER="${input_browser:-$DEFAULT_BROWSER}"
+    echo ""
 
     # Advanced options (optional)
-    echo
-    echo "Advanced options (press Enter for defaults):"
+    echo "ADVANCED OPTIONS"
+    echo "These settings control log management and are rarely changed."
+    echo ""
     
+    echo "Log rotation helps prevent activity logs from growing too large."
     local input_max_log
     read -rp "Maximum log lines before rotation [${DEFAULT_MAX_LOG_LINES}]: " input_max_log
     MAX_LOG_LINES="${input_max_log:-$DEFAULT_MAX_LOG_LINES}"
     
+    echo "Number of old log files to keep when rotating."
     local input_rotation
-    read -rp "Number of rotated logs to keep [${DEFAULT_ROTATION_KEEP}]: " input_rotation
+    read -rp "Rotated logs to keep [${DEFAULT_ROTATION_KEEP}]: " input_rotation
     ROTATION_KEEP="${input_rotation:-$DEFAULT_ROTATION_KEEP}"
+    echo ""
 
     # Validate configuration before saving
     if ! validate_config; then
@@ -105,7 +119,10 @@ create_interactive_config() {
 
     # Save configuration
     save_config
-    log "INFO" "Configuration saved to $CONFIG_FILE"
+    echo "✅ Configuration saved successfully!"
+    echo "   Config file: $CONFIG_FILE"
+    echo "   You can reconfigure anytime with: $0 --config"
+    echo ""
     return 0
 }
 
@@ -123,7 +140,7 @@ BROWSER=$BROWSER
 MAX_LOG_LINES=$MAX_LOG_LINES
 ROTATION_KEEP=$ROTATION_KEEP
 
-# Environment variable overrides:
+# Environment variable overrides available:
 # YOUMAD_LIMIT_RATE - Override download rate limit
 # YOUMAD_BROWSER - Override browser for cookies
 # YOUMAD_WORK_DIR - Override working directory
@@ -144,10 +161,10 @@ validate_config() {
         ((errors++))
     fi
     
-    # Validate browser
+    # Validate browser (now includes 'none')
     if ! validate_browser "$BROWSER"; then
         log "ERROR" "Invalid browser: $BROWSER"
-        log "INFO" "Valid browsers: chrome, chromium, brave, firefox, safari, edge"
+        log "INFO" "Valid browsers: none, file, chrome, chromium, brave, firefox, safari, edge"
         ((errors++))
     fi
     
@@ -174,11 +191,11 @@ validate_download_rate() {
     fi
 }
 
-# Validate browser name
+# Validate browser name (includes 'none' and 'file')
 validate_browser() {
     local browser="$1"
     case "$browser" in
-        chrome|chromium|brave|firefox|safari|edge)
+        none|file|chrome|chromium|brave|firefox|safari|edge)
             return 0
             ;;
         *)
@@ -263,13 +280,24 @@ init_docker_config() {
     return 0
 }
 
-# Reset configuration to defaults
+# Reset configuration to defaults (with new 'none' default)
 reset_config() {
-    LIMIT_RATE="$DEFAULT_LIMIT_RATE"
-    BROWSER="$DEFAULT_BROWSER"
-    MAX_LOG_LINES="$DEFAULT_MAX_LOG_LINES"
-    ROTATION_KEEP="$DEFAULT_ROTATION_KEEP"
+    echo "⚠️  This will reset all configuration to defaults."
+    echo "Current settings will be lost."
+    echo ""
+    read -rp "Are you sure you want to reset configuration? (y/N): " confirm
     
-    save_config
-    log "INFO" "Configuration reset to defaults"
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        LIMIT_RATE="$DEFAULT_LIMIT_RATE"
+        BROWSER="$DEFAULT_BROWSER"
+        MAX_LOG_LINES="$DEFAULT_MAX_LOG_LINES"
+        ROTATION_KEEP="$DEFAULT_ROTATION_KEEP"
+        
+        save_config
+        log "INFO" "Configuration reset to defaults (browser: $DEFAULT_BROWSER)"
+        echo "✅ Configuration reset successfully!"
+    else
+        echo "Configuration reset cancelled."
+        return 1
+    fi
 }
