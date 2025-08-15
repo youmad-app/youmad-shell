@@ -209,9 +209,6 @@ download_single_track() {
     local track_num="$3"
     local total_tracks="$4"
     
-    # DEBUG: Only show debug in verbose mode
-    [[ "${VERBOSE:-false}" == true ]] && echo "DEBUG: download_single_track called for track $track_num/$total_tracks in verbose=${VERBOSE:-false}"
-    
     # Get yt-dlp arguments for download
     local -a download_args
     readarray -t download_args < <(build_ytdlp_args "download" "$track_url" "$output_template")
@@ -238,9 +235,6 @@ download_album() {
     local artist="$2"
     local line_num="$3"
     local release_type="$4"
-
-    # DEBUG: Confirm this function is being called
-    [[ "${VERBOSE:-false}" == true ]] && log "INFO" "DEBUG: Refactored download_album() called with URL: $url"
 
     local artist_clean="${artist//&/and}"
     artist_clean=$(echo "$artist_clean" | tr -d '/<>:"|?*' | tr ' ' '_')
