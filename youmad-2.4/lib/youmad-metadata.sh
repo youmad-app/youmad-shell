@@ -11,15 +11,17 @@ process_album_metadata() {
 
     [[ "$VERBOSE" == true ]] && log "INFO" "Processing metadata in: $album_dir"
 
-    # Find audio files and sort by timestamp (preserves download/playlist order)
-    local temp_list="/tmp/youmad_files_$$.txt"
+    # Find UNPROCESSED audio files and sort by timestamp (preserves download/playlist order)
+    local temp_list="/tmp/youmad_files_$.txt"
     if stat -c "%Y" . >/dev/null 2>&1; then
-        # Linux/WSL - sort by timestamp
-        find "$album_dir" -type f \( -name "*.webm" -o -name "*.mp4" -o -name "*.opus" -o -name "*.m4a" \) \
+        # Linux/WSL - find only unprocessed files, sort by timestamp
+        find "$album_dir" -type f \( -name "*.webm" -o -name "*.mp4" \) \
+            ! -name "[0-9][0-9] - *" \
             -exec stat -c "%Y %n" {} \; | sort -n | cut -d' ' -f2- > "$temp_list"
     else
-        # macOS - sort by timestamp  
-        find "$album_dir" -type f \( -name "*.webm" -o -name "*.mp4" -o -name "*.opus" -o -name "*.m4a" \) \
+        # macOS - find only unprocessed files, sort by timestamp  
+        find "$album_dir" -type f \( -name "*.webm" -o -name "*.mp4" \) \
+            ! -name "[0-9][0-9] - *" \
             -exec stat -f "%m %N" {} \; | sort -n | awk '{$1=""; sub(/^ /, ""); print}' > "$temp_list"
     fi
 
@@ -30,9 +32,8 @@ process_album_metadata() {
         
         local filename=$(basename "$file")
         local file_ext="${filename##*.}"
-        local title="${filename%.*}"
-	title="${title#temp_}"  # Remove temp_ prefix if present
-
+        local title="${filename%.*}"  # Use filename as title
+        
         # Create numbered filename
         local final_ext="$file_ext"
         [[ "$file_ext" == "mp4" ]] && final_ext="m4a"  # Rename MP4→M4A
