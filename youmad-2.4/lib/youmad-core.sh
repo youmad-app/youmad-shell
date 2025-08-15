@@ -209,8 +209,8 @@ download_single_track() {
     local track_num="$3"
     local total_tracks="$4"
     
-    # DEBUG: Add this as the first line in download_single_track()
-    echo "DEBUG: download_single_track called for track $track_num/$total_tracks in verbose=${VERBOSE:-false}"
+    # DEBUG: Only show debug in verbose mode
+    [[ "${VERBOSE:-false}" == true ]] && echo "DEBUG: download_single_track called for track $track_num/$total_tracks in verbose=${VERBOSE:-false}"
     
     # Get yt-dlp arguments for download
     local -a download_args
