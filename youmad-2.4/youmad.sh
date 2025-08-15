@@ -337,13 +337,19 @@ clean_metadata() {
     done
 
     echo "DEBUG: File processing loop completed"
+
     rm -f "$temp_order"
+    echo "DEBUG: Removed temp_order file"
 
     # Final cleanup
     find "$album_dir" -name "*.metadata" -delete 2>/dev/null
+    echo "DEBUG: Cleaned up .metadata files"
+    echo "DEBUG: Cleaned up temp webp files"
+
     find "$album_dir" -name "temp_*.webp" -delete 2>/dev/null
     [[ "$VERBOSE" == true ]] && log "INFO" "Cleaned up any remaining temp files"
     [[ "$VERBOSE" == true ]] && log "INFO" "Metadata processing completed for ${#files_array[@]} files"
+    echo "DEBUG: clean_metadata function ending"
 }
 
 # Process all URLs
