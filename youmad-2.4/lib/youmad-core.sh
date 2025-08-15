@@ -1,5 +1,5 @@
 #!/bin/bash
-# YouMAD? - Core Download Module v2.4
+# YouMAD? - Core Download Module v2.4 (macOS Compatible)
 # Handles all yt-dlp operations and metadata fetching
 
 # Centralized yt-dlp argument building
@@ -68,16 +68,19 @@ build_ytdlp_args() {
     printf '%s\n' "${args[@]}"
 }
 
-# Unified metadata fetching with field selection
+# Unified metadata fetching with field selection (macOS compatible)
 fetch_metadata() {
     local url="$1"
     local fields="$2"  # Comma-separated: "title", "year", "tracks", "description"
     local temp_json
     temp_json=$(create_temp_file "metadata" "json")
     
-    # Get yt-dlp arguments for info mode
+    # Get yt-dlp arguments for info mode (macOS compatible array handling)
     local -a info_args
-    readarray -t info_args < <(build_ytdlp_args "info" "$url")
+    # Use while loop instead of readarray for macOS compatibility
+    while IFS= read -r arg; do
+        [[ -n "$arg" ]] && info_args+=("$arg")
+    done < <(build_ytdlp_args "info" "$url")
     
     if ! yt-dlp "${info_args[@]}" "$url" > "$temp_json" 2>/dev/null; then
         rm -f "$temp_json"
@@ -162,15 +165,17 @@ fetch_metadata() {
     echo "title=${title}|year=${year}|description=${description}|tracks=${track_count}"
 }
 
-# Extract track URLs from playlist/album
+# Extract track URLs from playlist/album (macOS compatible)
 extract_track_urls() {
     local url="$1"
     local temp_urls
     temp_urls=$(create_temp_file "track_urls" "txt")
     
-    # Get yt-dlp arguments for URL extraction
+    # Get yt-dlp arguments for URL extraction (macOS compatible)
     local -a extract_args
-    readarray -t extract_args < <(build_ytdlp_args "extract" "$url")
+    while IFS= read -r arg; do
+        [[ -n "$arg" ]] && extract_args+=("$arg")
+    done < <(build_ytdlp_args "extract" "$url")
     
     if ! yt-dlp "${extract_args[@]}" "$url" > "$temp_urls" 2>/dev/null; then
         rm -f "$temp_urls"
@@ -202,16 +207,18 @@ get_track_year() {
     fi
 }
 
-# Download single track with standardized arguments
+# Download single track with standardized arguments (macOS compatible)
 download_single_track() {
     local track_url="$1"
     local output_template="$2"
     local track_num="$3"
     local total_tracks="$4"
     
-    # Get yt-dlp arguments for download
+    # Get yt-dlp arguments for download (macOS compatible)
     local -a download_args
-    readarray -t download_args < <(build_ytdlp_args "download" "$track_url" "$output_template")
+    while IFS= read -r arg; do
+        [[ -n "$arg" ]] && download_args+=("$arg")
+    done < <(build_ytdlp_args "download" "$track_url" "$output_template")
     
     # In verbose mode, show the actual yt-dlp output
     local download_success=false
