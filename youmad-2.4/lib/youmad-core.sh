@@ -370,7 +370,6 @@ download_album() {
     fi
 
     # Return album info for metadata processing
-    echo "album_dir=$(find_latest_album_dir "$artist_clean")|year=$album_year"
     return 0
 }
 

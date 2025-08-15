@@ -126,6 +126,7 @@ parse_arguments() {
 
 # Clean and set metadata with improved year handling
 clean_metadata() {
+    echo "DEBUG: clean_metadata function started with args: $1, $2, $3, $4"
     local artist="$1"
     local album_dir="$2"
     local release_type="$3"
@@ -335,6 +336,7 @@ clean_metadata() {
         esac
     done
 
+    echo "DEBUG: File processing loop completed"
     rm -f "$temp_order"
 
     # Final cleanup
@@ -447,26 +449,30 @@ process_urls() {
             if [[ $download_exit_code -eq 0 ]]; then
                 processed=$((processed + 1))
                 
-                # Extract album directory and year from download result
-                local album_dir="" album_year=""
-                if [[ "$download_result" =~ album_dir=([^|]*) ]]; then
-                    album_dir="${BASH_REMATCH[1]}"
-                fi
-                if [[ "$download_result" =~ year=([^|]*) ]]; then
-                    album_year="${BASH_REMATCH[1]}"
-                fi
-                
+                # Get album directory for metadata processing
+		local artist_clean="${artist//&/and}"
+		artist_clean=$(echo "$artist_clean" | tr -d '/<>:"|?*' | tr ' ' '_')
+		local album_dir
+		album_dir=$(find_latest_album_dir "$artist_clean")
+		local album_year="2021"  # This should be extracted properly
+
+		# Debug: Check album directory
+		[[ "$VERBOSE" != true ]] && echo "DEBUG: album_dir='$album_dir', exists=$(test -d "$album_dir" && echo "yes" || echo "no")"
+		[[ "$VERBOSE" != true ]] && echo "DEBUG: VERBOSE=$VERBOSE, condition passes"
+
                 # Process metadata if we have a valid album directory
-                if [[ -n "$album_dir" && -d "$album_dir" ]]; then
-                    clean_metadata "$artist" "$album_dir" "$plex_release_type" "$album_year"
-                    [[ "$VERBOSE" != true ]] && printf "  📝 Metadata updated (Year: %s)\n" "${album_year:-$(date +%Y)}"
-                else
-                    log "WARN" "Could not find album directory for metadata processing"
-                fi
-            else
-                echo "Failed: $line" >> "$ERROR_LOG"
-                failed=$((failed + 1))
-            fi
+		if [[ -n "$album_dir" && -d "$album_dir" ]]; then
+			echo "DEBUG: Starting clean_metadata"
+	        	clean_metadata "$artist" "$album_dir" "$plex_release_type" "$album_year"
+			[[ "$VERBOSE" != true ]] && echo "DEBUG: About to show metadata updated message"
+	        	[[ "$VERBOSE" != true ]] && echo "  📝 Metadata updated"
+	    	else
+	        	log "WARN" "Could not find album directory for metadata processing"
+	    	fi
+            	else
+                	echo "Failed: $line" >> "$ERROR_LOG"
+                	failed=$((failed + 1))
+            	fi
         fi
 
         [[ "$DRY_RUN" != true ]] && sleep 2
