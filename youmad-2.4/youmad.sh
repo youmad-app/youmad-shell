@@ -430,8 +430,18 @@ process_urls() {
 
             # Download album and get result info
             local download_result
-            download_result=$(download_album "$url" "$artist" "$line_num/$total_urls" "$plex_release_type")
 	    [[ "$VERBOSE" == true ]] && log "INFO" "DEBUG: About to call download_album from youmad-core.sh"
+            #download_result=$(download_album "$url" "$artist" "$line_num/$total_urls" "$plex_release_type")
+
+	    # Test if the function exists and is callable
+	    if declare -F download_album >/dev/null 2>&1; then
+	        [[ "$VERBOSE" == true ]] && log "INFO" "DEBUG: download_album function is available"
+	        download_result=$(download_album "$url" "$artist" "$line_num/$total_urls" "$plex_release_type")
+	    else
+	        log "ERROR" "download_album function not found!"
+	        exit 1
+	    fi
+
             local download_exit_code=$?
             
             if [[ $download_exit_code -eq 0 ]]; then

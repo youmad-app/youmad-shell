@@ -209,6 +209,9 @@ download_single_track() {
     local track_num="$3"
     local total_tracks="$4"
     
+    # DEBUG: Add this as the first line in download_single_track()
+    echo "DEBUG: download_single_track called for track $track_num/$total_tracks in verbose=${VERBOSE:-false}"
+    
     # Get yt-dlp arguments for download
     local -a download_args
     readarray -t download_args < <(build_ytdlp_args "download" "$track_url" "$output_template")
@@ -236,10 +239,13 @@ download_album() {
     local line_num="$3"
     local release_type="$4"
 
+    # DEBUG: Confirm this function is being called
+    [[ "${VERBOSE:-false}" == true ]] && log "INFO" "DEBUG: Refactored download_album() called with URL: $url"
+
     local artist_clean="${artist//&/and}"
     artist_clean=$(echo "$artist_clean" | tr -d '/<>:"|?*' | tr ' ' '_')
 
-    if [[ "$DRY_RUN" == true ]]; then
+    if [[ "${DRY_RUN:-false}" == true ]]; then
         local metadata
         metadata=$(fetch_metadata "$url" "title,year")
         
@@ -252,7 +258,7 @@ download_album() {
             album_year="${BASH_REMATCH[1]}"
         fi
         
-        if [[ "$VERBOSE" == true ]]; then
+        if [[ "${VERBOSE:-false}" == true ]]; then
             log "INFO" "Would download '$album_title' by '$artist' (Year: ${album_year:-Unknown})"
         else
             printf "  Would download: %s - %s (Year: %s)\n" "$artist" "$album_title" "${album_year:-Unknown}"
@@ -272,7 +278,7 @@ download_album() {
         album_year="${BASH_REMATCH[1]}"
     fi
 
-    if [[ "$VERBOSE" == true ]]; then
+    if [[ "${VERBOSE:-false}" == true ]]; then
         log "INFO" "Starting download for $artist: $url"
         [[ -n "$album_year" ]] && log "INFO" "Detected album year: $album_year"
     else
@@ -294,13 +300,17 @@ download_album() {
     local track_count
     track_count=$(wc -l < "$temp_urls")
 
-    [[ "$VERBOSE" != true ]] && printf "found %d tracks\n" "$track_count"
+    if [[ "${VERBOSE:-false}" == true ]]; then
+        log "INFO" "Found $track_count tracks to download"
+    else
+        printf "found %d tracks\n" "$track_count"
+    fi
 
     # If we still don't have a year, try to get it from the first track
     if [[ -z "$album_year" ]] && [[ -s "$temp_urls" ]]; then
         local first_track_url=$(head -n1 "$temp_urls")
         album_year=$(get_track_year "$first_track_url")
-        [[ -n "$album_year" && "$VERBOSE" == true ]] && log "INFO" "Got year from first track: $album_year"
+        [[ -n "$album_year" && "${VERBOSE:-false}" == true ]] && log "INFO" "Got year from first track: $album_year"
     fi
 
     # Download tracks
@@ -325,7 +335,7 @@ download_album() {
             local track_files
             track_files=$(find "${artist_clean}" -name "temp_*" -type f \( -name "*.mp4" -o -name "*.webm" -o -name "*.opus" -o -name "*.m4a" \) 2>/dev/null | wc -l)
             if [[ "$track_files" -gt 0 ]]; then
-                if [[ "$VERBOSE" == true ]]; then
+                if [[ "${VERBOSE:-false}" == true ]]; then
                     log "WARN" "Track $track_num/$track_count downloaded with warnings"
                 else
                     printf "  ✓ Track %d/%d (with warnings)\n" "$track_num" "$track_count"
@@ -352,7 +362,7 @@ download_album() {
         log "WARN" "Download completed with $failed_tracks failed tracks"
         return 1
     else
-        if [[ "$VERBOSE" == true ]]; then
+        if [[ "${VERBOSE:-false}" == true ]]; then
             log "INFO" "Download completed successfully"
         else
             printf "  ✅ Completed in %dm %ds\n" "$minutes" "$seconds"
