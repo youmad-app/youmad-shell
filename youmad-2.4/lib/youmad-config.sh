@@ -213,10 +213,10 @@ show_config() {
     echo
     echo "Configuration file: $CONFIG_FILE"
     echo "Environment overrides available:"
-    echo "  YOUMAD_LIMIT_RATE=$YOUMAD_LIMIT_RATE"
-    echo "  YOUMAD_BROWSER=$YOUMAD_BROWSER"
-    echo "  YOUMAD_WORK_DIR=$YOUMAD_WORK_DIR"
-    echo "  YOUMAD_URL_FILE=$YOUMAD_URL_FILE"
+    echo "  YOUMAD_LIMIT_RATE=${YOUMAD_LIMIT_RATE:-unset}"
+    echo "  YOUMAD_BROWSER=${YOUMAD_BROWSER:-unset}"
+    echo "  YOUMAD_WORK_DIR=${YOUMAD_WORK_DIR:-unset}"
+    echo "  YOUMAD_URL_FILE=${YOUMAD_URL_FILE:-unset}"
 }
 
 # Export configuration for use by other modules
