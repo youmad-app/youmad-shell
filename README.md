@@ -67,6 +67,7 @@ Format: `URL;Artist Name;Type`
 **Artist Name** (Because YouTube Music doesn't understand that an album is made by _someone_):
 - This sets album artist and folder name where albums are downloaded
 - Use any character except semicolon (because that's the separator, doh!)
+- Without the Artist Name, Plex is generally unhappy. And we'd like a happy Plex, don't we?
 
 **Types**:
 - `album` - Regular albums (default, obviously)
