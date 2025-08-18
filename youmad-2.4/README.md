@@ -8,7 +8,8 @@ The end-goal is a self-hosted Docker image, which will be v.3. There has been a 
 
 ## Project status
 Refactoring and cleaning up YouMAD, in order to make it ready for self-hosting in a Docker image.  
-The version 2.4 is now much more reliable than the monolithic 2.1.3, especially for album downloads. Download logic, metadata and configuration is a lot more solid. Only limited testing of playlist downloads, downloading playlist has less moving parts, not a lot that *could* break.
+
+The version 2.4 is now much more reliable than the monolithic 2.1.3, especially for *album downloads*. Download logic, metadata and configuration is a lot more solid, simplified, deduplicated and less reliant on fall-backs and corner cases. There's only been limited testing of playlist downloads, downloading playlist has less moving parts, not a lot that *could* break.
 
 ## Why no documentation for v.2.4?
 v.2.4 has no meaningful feature updates that relates to downloading albums. It's a stop-gap towards self-hosting in Docker. It's stable enough for general use. Unless 2.1.3 breaks, it's a whole lot easier to use that older version.
